@@ -1,0 +1,32 @@
+# ---- Secrets (never commit) ----
+LYFESTYLE/Secrets.plist
+*.secret.plist
+
+# ---- macOS ----
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+
+# ---- Xcode ----
+build/
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+xcuserdata/
+
+# ---- Swift Package Manager ----
+.swiftpm/
+.build/
+Package.resolved.bak
+
+# ---- Misc ----
+*.log
+*.tmp

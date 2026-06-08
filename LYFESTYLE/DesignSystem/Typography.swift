@@ -1,0 +1,63 @@
+//
+//  Typography.swift
+//  LYFESTYL
+//
+//  SF Pro only (the default system font) — no Rounded, no Mono, no custom fonts
+//  (CLAUDE.md §3.2). Titles / headers / section headers / category labels are
+//  ALL CAPS + black weight; body stays normal. These helpers keep that rule in
+//  one place so screens just say `.sectionHeader()` etc.
+//
+
+import SwiftUI
+
+extension View {
+    /// ALL-CAPS, black-weight header with subtle positive tracking. The default
+    /// font stays SF Pro — we only set weight/case/tracking.
+    func blackCaps(_ font: Font, tracking: CGFloat = 0.5, color: Color = .appTextEmphasis) -> some View {
+        self.font(font)
+            .fontWeight(.black)
+            .textCase(.uppercase)
+            .tracking(tracking)
+            .foregroundStyle(color)
+    }
+
+    /// Large screen title (navigation-style hero header inside content).
+    func screenTitle(color: Color = .appTextEmphasis) -> some View {
+        blackCaps(.largeTitle, tracking: 1, color: color)
+    }
+
+    /// Section header above a group of content.
+    func sectionHeader(color: Color = .appText) -> some View {
+        blackCaps(.headline, tracking: 0.8, color: color)
+    }
+
+    /// A category/label chip's text treatment.
+    func categoryLabel(color: Color = .appTextEmphasis) -> some View {
+        blackCaps(.subheadline, tracking: 0.8, color: color)
+    }
+}
+
+/// A reusable ALL-CAPS black-weight `Text` for titles where a plain view
+/// modifier chain would be repetitive.
+struct CapsTitle: View {
+    let text: String
+    var font: Font = .title2
+    var tracking: CGFloat = 0.8
+    var color: Color = .appTextEmphasis
+
+    init(_ text: String, font: Font = .title2, tracking: CGFloat = 0.8, color: Color = .appTextEmphasis) {
+        self.text = text
+        self.font = font
+        self.tracking = tracking
+        self.color = color
+    }
+
+    var body: some View {
+        Text(text)
+            .font(font)
+            .fontWeight(.black)
+            .textCase(.uppercase)
+            .tracking(tracking)
+            .foregroundStyle(color)
+    }
+}
