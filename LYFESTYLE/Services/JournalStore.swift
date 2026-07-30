@@ -4,13 +4,14 @@
 //
 //  The data brain. Coordinates the offline-safe pipeline (CLAUDE.md §4 polish):
 //    1. save the raw entry locally the instant it's created (never lost)
-//    2. push the raw row to Supabase
+//    2. push the raw record to the CloudKit private database
 //    3. run the on-device Foundation Models breakdown
-//    4. sync the resulting insights to Supabase
+//    4. sync the resulting organized entry back to CloudKit
 //  Any step can fail (no model, no network) without data loss; failed/pending
 //  work is retried on appear, foreground, and when the model becomes available.
 //
-//  Supabase is authoritative; `entries` here is the live, observable mirror.
+//  The CloudKit private database is authoritative; `entries` here is the live,
+//  observable mirror.
 //
 
 import Foundation
@@ -28,13 +29,17 @@ final class JournalStore {
     /// IDs currently being broken down (drives per-row spinners).
     private(set) var inFlight: Set<UUID> = []
 
+    /// Increments exactly once per successful new-entry save. Drives the save
+    /// success haptic so it never fires on delete / refresh / sign-out.
+    private(set) var savedTick = 0
+
     /// Tombstones: entries deleted this session, so an in-flight pipeline or a
     /// refresh can't resurrect them.
     private var deletedEntryIDs: Set<UUID> = []
 
     private let engine: InsightEngine
     private let local = LocalStore()
-    private let service = SupabaseService()
+    private let service = CloudKitService()
     private var userID: UUID?
     private var hasLoaded = false
 
@@ -75,10 +80,10 @@ final class JournalStore {
 
     // MARK: - Creating entries
 
-    /// Create an entry from text or transcribed voice. Saves immediately and
-    /// starts the breakdown. Returns the new entry's id.
+    /// Free-write path: the user just typed/spoke. We save immediately and let
+    /// the on-device model quietly file it under one category behind the scenes.
     @discardableResult
-    func addEntry(text: String, source: EntrySource) async -> UUID? {
+    func addFreeWrite(text: String, source: EntrySource) async -> UUID? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
 
@@ -89,10 +94,135 @@ final class JournalStore {
             status: .pending
         )
         entries.insert(entry, at: 0)
+        savedTick += 1
         await persist()
 
         await process(entryID: entry.id)
         return entry.id
+    }
+
+    /// Guided path: the user already chose the category and answered a couple of
+    /// short organizing questions. Nothing needs the model, so this is instant.
+    /// `note` is the optional free-text they added; `fields` are their answers.
+    @discardableResult
+    func addGuidedEntry(
+        note: String,
+        source: EntrySource,
+        category: InsightCategory,
+        subtag: String?,
+        fields: [EntryField]
+    ) async -> UUID? {
+        let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanFields = fields.filter { !$0.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        // An entry needs *something*, either a note or at least one answer.
+        guard !trimmedNote.isEmpty || !cleanFields.isEmpty else { return nil }
+
+        let cleanSubtag = subtag?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let entry = JournalEntry(
+            userID: userID,
+            rawText: trimmedNote,
+            source: source,
+            status: .pending,
+            category: category,
+            subtag: (cleanSubtag?.isEmpty == false) ? cleanSubtag : nil,
+            title: Self.guidedTitle(note: trimmedNote, category: category, fields: cleanFields),
+            fields: cleanFields
+        )
+        entries.insert(entry, at: 0)
+        savedTick += 1
+        await persist()
+
+        await process(entryID: entry.id)
+        return entry.id
+    }
+
+    /// Structured workout path (the ACTIVITY logger): the user picked exercises and
+    /// (optionally) logged sets. Nothing needs the model, so it finishes instantly.
+    /// `note` is the optional free-text they added.
+    @discardableResult
+    func addWorkout(
+        note: String,
+        exercises: [LoggedExercise],
+        unit: WeightUnit,
+        source: EntrySource
+    ) async -> UUID? {
+        let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !exercises.isEmpty || !trimmedNote.isEmpty else { return nil }
+
+        let payload = exercises.isEmpty ? nil : WorkoutPayload(exercises: exercises, unit: unit)
+        let entry = JournalEntry(
+            userID: userID,
+            rawText: trimmedNote,
+            source: source,
+            status: .processed,
+            category: .activity,
+            title: Self.workoutTitle(note: trimmedNote, payload: payload),
+            workout: payload
+        )
+        entries.insert(entry, at: 0)
+        savedTick += 1
+        await persist()
+
+        await process(entryID: entry.id)
+        return entry.id
+    }
+
+    /// Free-written workout path (the ACTIVITY logger's "just write it" mode): save
+    /// the note now and let the on-device model derive the movements in the
+    /// pipeline (matched to the library), keeping the raw note alongside.
+    @discardableResult
+    func addActivityNote(text: String, source: EntrySource) async -> UUID? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let entry = JournalEntry(
+            userID: userID,
+            rawText: trimmed,
+            source: source,
+            status: .pending,
+            category: .activity
+        )
+        entries.insert(entry, at: 0)
+        savedTick += 1
+        await persist()
+
+        await process(entryID: entry.id)
+        return entry.id
+    }
+
+    /// Back-compat shim: a plain text/voice entry is treated as a free write.
+    @discardableResult
+    func addEntry(text: String, source: EntrySource) async -> UUID? {
+        await addFreeWrite(text: text, source: source)
+    }
+
+    /// A clean, neutral title for a logged workout: prefer the user's note, else
+    /// name the one or two body systems it worked ("Legs & Core"), else "Workout".
+    static func workoutTitle(note: String, payload: WorkoutPayload?) -> String {
+        let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            let firstLine = trimmed.split(whereSeparator: \.isNewline).first.map(String.init) ?? trimmed
+            return String(firstLine.prefix(60))
+        }
+        let systems = payload?.systemsWorked ?? []
+        switch systems.count {
+        case 0:  return "Workout"
+        case 1:  return "\(systems[0].label.capitalized) workout"
+        default: return "\(systems[0].label.capitalized) & \(systems[1].label.capitalized)"
+        }
+    }
+
+    /// A clean, deterministic title for a guided entry, no model needed: prefer
+    /// the user's note, else their first answer, else the category name.
+    private static func guidedTitle(note: String, category: InsightCategory, fields: [EntryField]) -> String {
+        if !note.isEmpty {
+            let firstLine = note.split(whereSeparator: \.isNewline).first.map(String.init) ?? note
+            return String(firstLine.prefix(60))
+        }
+        if let first = fields.first?.value.trimmingCharacters(in: .whitespacesAndNewlines), !first.isEmpty {
+            return first
+        }
+        return category.label.capitalized
     }
 
     // MARK: - Pipeline
@@ -105,12 +235,12 @@ final class JournalStore {
         guard let idx = entries.firstIndex(where: { $0.id == entryID }) else { return }
         var entry = entries[idx]
 
-        // 1) Ensure the raw row is in the cloud (raw text is never lost). The
-        //    on-device breakdown does NOT need the network, so a cloud failure
-        //    here must not stop us — we just retry the sync later.
-        if !entry.syncedToCloud, let uid = userID, let service {
+        // 1) Ensure the raw row is in iCloud (raw text is never lost). The
+        //    on-device work does NOT need the network, so a cloud failure here must
+        //    not stop us, we just retry the sync later.
+        if !entry.syncedToCloud, userID != nil {
             do {
-                try await service.insertEntryRow(entry, userID: uid)
+                try await service.saveEntry(entry)
                 entry.syncedToCloud = true
             } catch {
                 entry.syncedToCloud = false
@@ -119,59 +249,115 @@ final class JournalStore {
             await persist()
         }
 
-        // 2) Run the on-device breakdown if it hasn't been done yet.
+        // 2) Organize the entry if it hasn't been done yet.
         if entry.status != .processed {
-            engine.refreshAvailability()
-            guard engine.isAvailable else {
-                // Leave as pending; retryUnfinished() picks it up later.
-                if entry.status != .pending {
-                    entry.status = .pending
+            // Free-written ACTIVITY: derive structured movements on-device (matched
+            // to the exercise library) and keep the raw note alongside. Needs the
+            // model; if it's unavailable we leave it pending and retry later.
+            if entry.category == .activity, entry.workout == nil,
+               entry.fields.isEmpty, !entry.rawText.isEmpty {
+                engine.refreshAvailability()
+                guard engine.isAvailable else {
+                    if entry.status != .pending {
+                        entry.status = .pending
+                        update(entry)
+                        await persist()
+                    }
+                    return
+                }
+
+                inFlight.insert(entryID)
+                isProcessing = true
+                entry.status = .processing
+                update(entry)
+                await persist()
+                defer {
+                    inFlight.remove(entryID)
+                    isProcessing = !inFlight.isEmpty
+                }
+
+                do {
+                    let exercises = try await engine.parseWorkout(entry.rawText)
+                    guard !deletedEntryIDs.contains(entryID) else { return }
+                    if !exercises.isEmpty {
+                        entry.workout = WorkoutPayload(exercises: exercises)
+                    }
+                    if (entry.title ?? "").isEmpty {
+                        entry.title = Self.workoutTitle(note: entry.rawText, payload: entry.workout)
+                    }
+                    entry.status = .processed
                     update(entry)
                     await persist()
+                } catch {
+                    entry.status = .failed
+                    update(entry)
+                    await persist()
+                    return // raw note is safe; retryUnfinished() will try again
                 }
-                return
             }
-
-            inFlight.insert(entryID)
-            isProcessing = true
-            entry.status = .processing
-            update(entry)
-            await persist()
-            defer {
-                inFlight.remove(entryID)
-                isProcessing = !inFlight.isEmpty
-            }
-
-            do {
-                let breakdown = try await engine.breakdown(of: entry.rawText)
-                // The user may have deleted the entry while the model ran.
-                guard !deletedEntryIDs.contains(entryID) else { return }
-                let now = Date()
-                let insights = breakdown.categories.compactMap {
-                    Insight(from: $0, entryID: entry.id, entryDate: entry.entryDate, createdAt: now)
+            // Guided / structured entries are already organized by the user, no
+            // model needed, so they finish instantly even when it's unavailable.
+            else if entry.category != nil {
+                if (entry.title ?? "").isEmpty {
+                    entry.title = Self.guidedTitle(note: entry.rawText, category: entry.category!, fields: entry.fields)
                 }
-                entry.insights = insights
-                entry.overallSummary = breakdown.overallSummary.trimmingCharacters(in: .whitespacesAndNewlines)
                 entry.status = .processed
                 update(entry)
                 await persist()
-            } catch {
-                entry.status = .failed
+            } else {
+                // Free write: quietly classify behind the scenes.
+                engine.refreshAvailability()
+                guard engine.isAvailable else {
+                    // Leave as pending; retryUnfinished() picks it up later.
+                    if entry.status != .pending {
+                        entry.status = .pending
+                        update(entry)
+                        await persist()
+                    }
+                    return
+                }
+
+                inFlight.insert(entryID)
+                isProcessing = true
+                entry.status = .processing
                 update(entry)
                 await persist()
-                return // raw entry is safe; retryUnfinished() will try again
+                defer {
+                    inFlight.remove(entryID)
+                    isProcessing = !inFlight.isEmpty
+                }
+
+                do {
+                    let result = try await engine.classify(entry.rawText)
+                    // The user may have deleted the entry while the model ran.
+                    guard !deletedEntryIDs.contains(entryID) else { return }
+                    entry.category = InsightCategory(modelValue: result.category) // nil for NONE
+                    let title = result.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                    entry.title = title.isEmpty ? nil : title
+                    if entry.category == .social,
+                       let sub = result.subtag?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       !sub.isEmpty {
+                        entry.subtag = sub
+                    }
+                    entry.status = .processed
+                    update(entry)
+                    await persist()
+                } catch {
+                    entry.status = .failed
+                    update(entry)
+                    await persist()
+                    return // raw entry is safe; retryUnfinished() will try again
+                }
             }
         }
 
-        // 3) Sync the finished breakdown to the cloud — only once the raw row is
-        //    there, so we never hit a foreign-key violation.
+        // 3) Sync the finished entry to iCloud, only once the raw row is there.
         if entry.status == .processed, entry.syncedToCloud,
-           !deletedEntryIDs.contains(entryID), let uid = userID, let service {
+           !deletedEntryIDs.contains(entryID), userID != nil {
             do {
-                try await service.replaceInsights(entry.insights, entryID: entry.id, userID: uid)
-                try await service.updateEntryProcessed(entry)
+                try await service.saveEntry(entry)
             } catch {
-                syncError = "Saved on device; couldn't sync the breakdown yet."
+                syncError = "Saved on device; couldn't sync the entry yet."
             }
         }
     }
@@ -190,15 +376,15 @@ final class JournalStore {
     // MARK: - Refresh / delete
 
     func refresh() async {
-        guard let uid = userID, let service else { return }
+        guard userID != nil else { return }
         isRefreshing = true
         defer { isRefreshing = false }
         do {
-            let cloud = try await service.fetchEntries(userID: uid)
+            let cloud = try await service.fetchEntries()
             merge(cloud: cloud)
             await persist()
         } catch {
-            // Offline or transient — keep showing the cache silently.
+            // Offline or transient, keep showing the cache silently.
         }
     }
 
@@ -206,24 +392,14 @@ final class JournalStore {
         deletedEntryIDs.insert(entry.id)
         entries.removeAll { $0.id == entry.id }
         await persist()
-        if let service, entry.syncedToCloud {
+        if entry.syncedToCloud {
             try? await service.deleteEntry(id: entry.id)
         }
     }
 
     // MARK: - Derived data
 
-    var allInsights: [Insight] { entries.flatMap(\.insights) }
-
     var hasAnyEntries: Bool { !entries.isEmpty }
-
-    /// Entries grouped by calendar day, newest day first.
-    var entriesByDay: [(day: Date, entries: [JournalEntry])] {
-        let groups = Dictionary(grouping: entries) { Calendar.current.startOfDay(for: $0.entryDate) }
-        return groups
-            .map { (day: $0.key, entries: $0.value.sorted { $0.createdAt > $1.createdAt }) }
-            .sorted { $0.day > $1.day }
-    }
 
     // MARK: - Helpers
 

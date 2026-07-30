@@ -2,18 +2,19 @@
 //  AuthManager.swift
 //  LYFESTYL
 //
-//  Sign in with Apple → Supabase Auth (CLAUDE.md §4.3). Owns auth state and
-//  gates the app. The nonce flow is security-critical and verified:
-//    • generate a RAW nonce
-//    • set sha256(raw) (HASHED) on the Apple request
-//    • pass the RAW nonce to Supabase signInWithIdToken
+//  Sign in with Apple gates the app; CloudKit's private database (auto scoped to
+//  the signed in iCloud account) holds the data. There is no backend token
+//  exchange and no external service: the Apple credential establishes the local
+//  session, and every entry lives in the user's own iCloud.
+//
+//  A stable local user id (persisted once) tags the offline cache. Apple only
+//  returns the full name on the first sign in, so we persist it when we get it.
 //
 
 import Foundation
 import Observation
 import AuthenticationServices
-import CryptoKit
-import Supabase
+import CloudKit
 
 @MainActor
 @Observable
@@ -30,13 +31,17 @@ final class AuthManager {
     private(set) var displayName: String?
     var errorMessage: String?
 
-    /// False when Secrets.plist is missing/placeholder — the UI shows a setup screen.
-    var isConfigured: Bool { SupabaseConfig.isConfigured }
+    /// CloudKit needs no secrets, so the app is always "configured". Kept so the
+    /// existing root routing (which branches on this) stays intact.
+    var isConfigured: Bool { true }
 
-    private let client = SupabaseConfig.client
-    private var currentNonce: String?
-    private var pendingDisplayName: String?
-    private var authTask: Task<Void, Never>?
+    private enum Key {
+        static let appleUserID = "auth.appleUserID"
+        static let displayName = "auth.displayName"
+        static let localUserID = "auth.localUserID"
+    }
+
+    private let defaults = UserDefaults.standard
 
     init() {
         #if DEBUG
@@ -47,140 +52,107 @@ final class AuthManager {
             return
         }
         #endif
-        guard let client else {
-            // Not configured — surface a setup state, don't crash.
-            phase = .signedOut
-            return
-        }
-        authTask = Task { [weak self] in
-            for await (event, session) in client.auth.authStateChanges {
-                await self?.apply(event: event, session: session)
-            }
-        }
+        Task { await restoreSession() }
     }
 
     // MARK: - Apple sign-in
 
-    /// Configure the Apple request: scopes + the HASHED nonce.
+    /// Configure the Apple request: the scopes we want. No server nonce is needed
+    /// because there is no backend to exchange the token with, the credential
+    /// simply establishes the local session over the user's iCloud data.
     func prepareAppleRequest(_ request: ASAuthorizationAppleIDRequest) {
-        let raw = Self.randomNonceString()
-        currentNonce = raw
         request.requestedScopes = [.fullName, .email]
-        request.nonce = Self.sha256(raw)
     }
 
-    /// Handle the SignInWithAppleButton completion: extract the id token and
-    /// exchange it with Supabase using the RAW nonce.
+    /// Handle the SignInWithAppleButton completion: persist the stable Apple user
+    /// id and the display name, establish the local session, and flag if iCloud is
+    /// unavailable (non blocking, entries are always safe on device).
     func handleAppleCompletion(_ result: Result<ASAuthorization, Error>) async {
         switch result {
         case .failure(let error):
             if let authError = error as? ASAuthorizationError, authError.code == .canceled {
-                return // user canceled — not an error worth surfacing
+                return // user canceled, not an error worth surfacing
             }
             errorMessage = "Sign in failed. \(error.localizedDescription)"
         case .success(let authorization):
-            guard
-                let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
-                let tokenData = credential.identityToken,
-                let idToken = String(data: tokenData, encoding: .utf8),
-                let nonce = currentNonce
-            else {
-                errorMessage = "Sign in failed: missing identity token."
+            guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential else {
+                errorMessage = "Sign in failed: unexpected credential."
                 return
             }
+            defaults.set(credential.user, forKey: Key.appleUserID)
+
+            // Apple only returns the name on the first sign in; persist it if present.
             if let fullName = credential.fullName {
                 let name = PersonNameComponentsFormatter()
                     .string(from: fullName)
                     .trimmingCharacters(in: .whitespacesAndNewlines)
-                if !name.isEmpty { pendingDisplayName = name }
+                if !name.isEmpty { defaults.set(name, forKey: Key.displayName) }
             }
-            do {
-                guard let client else { throw AuthError.notConfigured }
-                _ = try await client.auth.signInWithIdToken(
-                    credentials: .init(provider: .apple, idToken: idToken, nonce: nonce)
-                )
-                // session arrival handled by the authStateChanges stream
-            } catch {
-                errorMessage = "Sign in failed. \(error.localizedDescription)"
-            }
+            displayName = defaults.string(forKey: Key.displayName) ?? credential.email
+
+            userID = localUserID()
+            errorMessage = nil
+            phase = .signedIn
+
+            await warnIfNoAccount()
         }
     }
 
     func signOut() async {
-        guard let client else { return }
-        try? await client.auth.signOut()
+        defaults.removeObject(forKey: Key.appleUserID)
+        defaults.removeObject(forKey: Key.displayName)
         userID = nil
         displayName = nil
+        errorMessage = nil
         phase = .signedOut
     }
 
-    // MARK: - State
+    // MARK: - Session restore
 
-    private func apply(event: AuthChangeEvent, session: Session?) async {
-        switch event {
-        case .signedOut:
-            userID = nil
-            displayName = nil
+    /// Restore a persisted session on launch: if we have a stored Apple user id and
+    /// it is still authorized, sign back in; otherwise show the sign in gate.
+    private func restoreSession() async {
+        guard let appleUserID = defaults.string(forKey: Key.appleUserID) else {
             phase = .signedOut
+            return
+        }
+
+        let provider = ASAuthorizationAppleIDProvider()
+        let state = try? await provider.credentialState(forUserID: appleUserID)
+        switch state {
+        case .authorized:
+            userID = localUserID()
+            displayName = defaults.string(forKey: Key.displayName)
+            phase = .signedIn
+            await warnIfNoAccount()
         default:
-            if let user = session?.user {
-                userID = user.id
-                phase = .signedIn
-                await syncProfileIfNeeded(userID: user.id, email: user.email)
-            } else if event == .initialSession {
-                // No persisted session.
-                phase = .signedOut
-            }
+            // Revoked, transferred, or not found: clear and require sign in again.
+            defaults.removeObject(forKey: Key.appleUserID)
+            defaults.removeObject(forKey: Key.displayName)
+            phase = .signedOut
         }
     }
 
-    private func syncProfileIfNeeded(userID: UUID, email: String?) async {
-        // Apple only returns the name on first sign-in; persist it if we got one.
-        if let name = pendingDisplayName {
-            displayName = name
-            if let service = SupabaseService() {
-                await service.upsertProfile(userID: userID, displayName: name)
-            }
-            pendingDisplayName = nil
-        } else if displayName == nil {
-            displayName = email
+    // MARK: - Helpers
+
+    /// A stable, app local user id used only to tag the offline cache. The
+    /// authoritative scoping is CloudKit's private DB (the iCloud account itself).
+    private func localUserID() -> UUID {
+        if let raw = defaults.string(forKey: Key.localUserID), let id = UUID(uuidString: raw) {
+            return id
         }
+        let id = UUID()
+        defaults.set(id.uuidString, forKey: Key.localUserID)
+        return id
     }
 
-    enum AuthError: LocalizedError {
-        case notConfigured
-        var errorDescription: String? {
-            switch self {
-            case .notConfigured: "Supabase isn't configured. Add your keys to Secrets.plist."
-            }
+    /// Best effort: surface a calm hint if iCloud isn't available, so the user
+    /// knows sync is paused. Never blocks sign in, the local cache is authoritative
+    /// on device until iCloud returns.
+    private func warnIfNoAccount() async {
+        let status = try? await CKContainer.default().accountStatus()
+        if status != .available {
+            errorMessage = "Signed in. Sign into iCloud in Settings to sync your entries across devices."
         }
-    }
-
-    // MARK: - Nonce helpers (verified)
-
-    static func randomNonceString(length: Int = 32) -> String {
-        precondition(length > 0)
-        let charset: [Character] =
-            Array("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-._")
-        var result = ""
-        var remaining = length
-        while remaining > 0 {
-            var randoms = [UInt8](repeating: 0, count: 16)
-            let status = SecRandomCopyBytes(kSecRandomDefault, randoms.count, &randoms)
-            if status != errSecSuccess { continue }
-            for random in randoms where remaining > 0 {
-                if random < charset.count * (256 / charset.count) {
-                    result.append(charset[Int(random) % charset.count])
-                    remaining -= 1
-                }
-            }
-        }
-        return result
-    }
-
-    static func sha256(_ input: String) -> String {
-        SHA256.hash(data: Data(input.utf8))
-            .map { String(format: "%02x", $0) }
-            .joined()
     }
 }

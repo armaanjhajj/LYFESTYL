@@ -2,9 +2,10 @@
 //  Trends.swift
 //  LYFESTYL
 //
-//  Pure aggregation for the Trends surface. Turns the flat list of insights into
-//  daily time series (for Swift Charts) and per-category rank averages. Kept
-//  free of UI so it's easy to reason about and test.
+//  Pure aggregation for the Trends surface. Neutral activity only: how often each
+//  category gets logged over time, daily totals, and current streaks. No ranks, no
+//  scores, no estimated numbers, the app reflects what you logged, it doesn't grade
+//  it. Kept free of UI so it's easy to reason about and test.
 //
 
 import Foundation
@@ -32,8 +33,16 @@ enum TrendRange: String, CaseIterable, Identifiable {
 }
 
 struct TrendCalculator {
-    let insights: [Insight]
+    let entries: [JournalEntry]
     var calendar: Calendar = .current
+
+    /// Only finished, categorized entries count toward activity.
+    private var categorized: [(category: InsightCategory, day: Date)] {
+        entries.compactMap { entry in
+            guard let category = entry.category else { return nil }
+            return (category, calendar.startOfDay(for: entry.entryDate))
+        }
+    }
 
     private func startDate(for range: TrendRange) -> Date {
         let today = calendar.startOfDay(for: Date())
@@ -41,66 +50,67 @@ struct TrendCalculator {
     }
 
     var domainEnd: Date { calendar.startOfDay(for: Date()) }
-
     func domainStart(_ range: TrendRange) -> Date { startDate(for: range) }
 
-    /// Daily aggregated series for a metric within the range.
-    func metricSeries(_ key: MetricKey, range: TrendRange) -> [TrendPoint] {
+    /// Daily count of entries for one category within the range.
+    func countSeries(_ category: InsightCategory, range: TrendRange) -> [TrendPoint] {
         let start = startDate(for: range)
-        var byDay: [Date: [Double]] = [:]
-        for insight in insights where insight.category == key.category {
-            guard let value = insight.value(for: key) else { continue }
-            let day = calendar.startOfDay(for: insight.entryDate)
-            guard day >= start else { continue }
-            byDay[day, default: []].append(value)
+        var byDay: [Date: Int] = [:]
+        for item in categorized where item.category == category && item.day >= start {
+            byDay[item.day, default: 0] += 1
         }
-        return byDay.map { day, values in
-            let agg: Double
-            switch key.aggregation {
-            case .sum: agg = values.reduce(0, +)
-            case .average: agg = values.reduce(0, +) / Double(values.count)
-            }
-            return TrendPoint(date: day, value: agg)
-        }
-        .sorted { $0.date < $1.date }
+        return byDay
+            .map { TrendPoint(date: $0.key, value: Double($0.value)) }
+            .sorted { $0.date < $1.date }
     }
 
-    /// Daily average rank (1...5) for a category within the range.
-    func rankSeries(_ category: InsightCategory, range: TrendRange) -> [TrendPoint] {
+    /// Total entries for one category within the range.
+    func totalCount(_ category: InsightCategory, range: TrendRange) -> Int {
         let start = startDate(for: range)
-        var byDay: [Date: [Int]] = [:]
-        for insight in insights where insight.category == category {
-            let day = calendar.startOfDay(for: insight.entryDate)
-            guard day >= start else { continue }
-            byDay[day, default: []].append(insight.rank.score)
-        }
-        return byDay.map { day, scores in
-            TrendPoint(date: day, value: Double(scores.reduce(0, +)) / Double(scores.count))
-        }
-        .sorted { $0.date < $1.date }
+        return categorized.filter { $0.category == category && $0.day >= start }.count
     }
 
-    /// Overall average rank score for a category within the range, if any.
-    func averageScore(_ category: InsightCategory, range: TrendRange) -> Double? {
+    /// Total categorized entries within the range, across all categories.
+    func totalEntries(range: TrendRange) -> Int {
         let start = startDate(for: range)
-        let scores = insights
-            .filter { $0.category == category && calendar.startOfDay(for: $0.entryDate) >= start }
-            .map { $0.rank.score }
-        guard !scores.isEmpty else { return nil }
-        return Double(scores.reduce(0, +)) / Double(scores.count)
+        return categorized.filter { $0.day >= start }.count
     }
 
-    /// Which metrics have at least one data point in the range (for the picker).
-    func availableMetrics(range: TrendRange) -> [MetricKey] {
-        MetricKey.allCases.filter { !metricSeries($0, range: range).isEmpty }
+    /// Daily entry totals across all categories within the range.
+    func dailyTotalSeries(range: TrendRange) -> [TrendPoint] {
+        let start = startDate(for: range)
+        var byDay: [Date: Int] = [:]
+        for item in categorized where item.day >= start {
+            byDay[item.day, default: 0] += 1
+        }
+        return byDay
+            .map { TrendPoint(date: $0.key, value: Double($0.value)) }
+            .sorted { $0.date < $1.date }
     }
 
-    /// Categories that have any rank data in the range.
+    /// The most recent run of consecutive days a category was logged. Counts back
+    /// from the latest day it appears, so a finished streak still reads as a win.
+    func currentStreak(_ category: InsightCategory) -> Int {
+        let days = Set(categorized.filter { $0.category == category }.map { $0.day })
+        guard let latest = days.max() else { return 0 }
+        var streak = 0
+        var cursor = latest
+        while days.contains(cursor) {
+            streak += 1
+            guard let prev = calendar.date(byAdding: .day, value: -1, to: cursor) else { break }
+            cursor = prev
+        }
+        return streak
+    }
+
+    /// Categories with at least one entry in the range, in display order.
     func availableCategories(range: TrendRange) -> [InsightCategory] {
-        InsightCategory.allCases
-            .filter { averageScore($0, range: range) != nil }
+        let start = startDate(for: range)
+        let present = Set(categorized.filter { $0.day >= start }.map { $0.category })
+        return InsightCategory.allCases
+            .filter { present.contains($0) }
             .sorted { $0.sortIndex < $1.sortIndex }
     }
 
-    var hasAnyData: Bool { !insights.isEmpty }
+    var hasAnyData: Bool { !categorized.isEmpty }
 }

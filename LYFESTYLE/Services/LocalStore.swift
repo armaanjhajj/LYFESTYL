@@ -2,9 +2,10 @@
 //  LocalStore.swift
 //  LYFESTYL
 //
-//  Local, offline-safe cache of entries (CLAUDE.md §4.2/§4 polish). Supabase
-//  stays authoritative; this is the safety net so an entry is NEVER lost if the
-//  model or network fails, and so the Log renders instantly and offline.
+//  Local, offline-safe cache of entries (CLAUDE.md §4.2/§4 polish). The CloudKit
+//  private database stays authoritative; this is the safety net so an entry is
+//  NEVER lost if the model or network fails, and so the Log renders instantly and
+//  offline.
 //
 //  A file-based JSON store (one source of truth on disk), guarded by an actor.
 //

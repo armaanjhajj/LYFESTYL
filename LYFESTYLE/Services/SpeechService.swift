@@ -4,7 +4,7 @@
 //
 //  On-device voice transcription (CLAUDE.md §4.5) using the iOS 26 Speech stack:
 //  `SpeechAnalyzer` + `SpeechTranscriber`, fed live audio from an `AVAudioEngine`
-//  tap. Everything stays on the phone — the transcript is then handed to the
+//  tap. Everything stays on the phone, the transcript is then handed to the
 //  same Foundation Models pipeline as a typed entry.
 //
 //  Verified against the Speech.framework swiftinterface (iOS 26.5 SDK):
@@ -17,7 +17,7 @@ import Foundation
 import Observation
 import Speech
 // @preconcurrency: AVFAudio's AVAudioPCMBuffer isn't Sendable, but we hand it
-// straight to the analyzer on the audio thread without sharing it — silence the
+// straight to the analyzer on the audio thread without sharing it, silence the
 // benign Sendable warning rather than copy buffers needlessly.
 @preconcurrency import AVFoundation
 @preconcurrency import AVFAudio
@@ -314,6 +314,11 @@ final class SpeechService {
     private func fail(_ message: String) {
         errorMessage = message
         state = .idle
+    }
+
+    /// Clear a surfaced error after the UI has shown it.
+    func clearError() {
+        errorMessage = nil
     }
 
     // MARK: - Helpers
