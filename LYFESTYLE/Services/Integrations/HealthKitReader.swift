@@ -127,12 +127,6 @@ nonisolated struct HealthKitReader: Sendable {
         }
     }
 
-    /// Whether HealthKit treats this type as cumulative. Read from the type itself rather
-    /// than hardcoded, because asking for the wrong statistic returns nil silently.
-    static func isCumulative(_ identifier: HKQuantityTypeIdentifier) -> Bool {
-        HKQuantityType(identifier).aggregationStyle == .cumulative
-    }
-
     // MARK: - Authorization
 
     /// Present the system permission sheet. HealthKit never reports whether READ access was
@@ -143,19 +137,6 @@ nonisolated struct HealthKitReader: Sendable {
     }
 
     // MARK: - Sources
-
-    /// Which apps and devices have written workouts. Used to attribute a session to Garmin
-    /// versus Apple Watch, and to show the user what the app can actually see.
-    ///
-    /// Bundle identifiers are DISCOVERED here rather than hardcoded, because Garmin's can
-    /// change and a hardcoded string would fail silently.
-    func workoutSources() async -> [HKSource] {
-        let descriptor = HKSourceQueryDescriptor(
-            predicate: .workout(HKQuery.predicateForSamples(withStart: nil, end: nil))
-        )
-        guard let sources = try? await descriptor.result(for: store) else { return [] }
-        return Array(sources).sorted { $0.name.localizedCompare($1.name) == .orderedAscending }
-    }
 
     /// Classify a sample's writer.
     static func dataSource(for revision: HKSourceRevision?) -> DataSource {

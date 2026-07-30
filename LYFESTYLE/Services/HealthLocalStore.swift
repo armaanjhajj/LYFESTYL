@@ -29,23 +29,19 @@ nonisolated struct SyncBookmarks: Codable, Sendable {
     /// How far back HealthKit has been read.
     var healthKitEarliestRead: Date?
     var healthKitLastRead: Date?
-    /// Foreign ids of FIT files already imported, so re-importing a folder is idempotent.
-    var importedFITIdentities: Set<String>
 
     init(
         hevyEventsSince: Date? = nil,
         hevyBackfillCompletedAt: Date? = nil,
         hevyWorkoutCount: Int? = nil,
         healthKitEarliestRead: Date? = nil,
-        healthKitLastRead: Date? = nil,
-        importedFITIdentities: Set<String> = []
+        healthKitLastRead: Date? = nil
     ) {
         self.hevyEventsSince = hevyEventsSince
         self.hevyBackfillCompletedAt = hevyBackfillCompletedAt
         self.hevyWorkoutCount = hevyWorkoutCount
         self.healthKitEarliestRead = healthKitEarliestRead
         self.healthKitLastRead = healthKitLastRead
-        self.importedFITIdentities = importedFITIdentities
     }
 
     static let empty = SyncBookmarks()
@@ -140,39 +136,9 @@ actor HealthLocalStore {
 
     // MARK: Maintenance
 
-    /// Total bytes on disk, so the settings screen can be honest about the footprint of a
-    /// long history with sample series.
-    func diskUsageBytes() -> Int {
-        let names = ["workouts", "snapshots", "hevy_templates", "bookmarks", "dismissed_insights"]
-        return names.reduce(0) { total, name in
-            let attributes = try? FileManager.default.attributesOfItem(atPath: url(name).path)
-            return total + ((attributes?[.size] as? Int) ?? 0)
-        }
-    }
-
     /// Wipe everything, for disconnecting or signing out.
     func clear() {
         try? FileManager.default.removeItem(at: directory)
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-    }
-
-    /// Drop the sample series from sessions older than a cutoff, keeping their summaries.
-    ///
-    /// Series are what make a workout large, and they are only needed for the analyses that
-    /// look within a session. Once a session is old enough that nothing recomputes from its
-    /// samples, the cached derived values (normalized power, decoupling) are all that is
-    /// still used, so the raw series can be released.
-    func pruneSeries(olderThan cutoff: Date, workouts: [UnifiedWorkout]) -> [UnifiedWorkout] {
-        workouts.map { workout in
-            guard workout.start < cutoff, workout.heartRateSeries != nil else { return workout }
-            var trimmed = workout
-            trimmed.heartRateSeries = nil
-            trimmed.speedSeries = nil
-            trimmed.powerSeries = nil
-            trimmed.cadenceSeries = nil
-            trimmed.altitudeSeries = nil
-            trimmed.distanceSeries = nil
-            return trimmed
-        }
     }
 }

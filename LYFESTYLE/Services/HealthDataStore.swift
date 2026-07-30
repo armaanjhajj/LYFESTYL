@@ -41,9 +41,6 @@ final class HealthDataStore {
     private(set) var lastAnalysisDuration: TimeInterval?
     private(set) var hasLoadedCache = false
 
-    /// A message worth showing the user about the last operation.
-    var statusMessage: String?
-    var errorMessage: String?
 
     // MARK: - Connection state
 
@@ -93,7 +90,10 @@ final class HealthDataStore {
     private var bookmarks: SyncBookmarks = .empty
 
     private var analysisTask: Task<Void, Never>?
-    private var syncTasks: [DataSource: Task<Void, Never>] = [:]
+    /// Sources with a sync in flight. Guards against a second sync of the same source
+    /// starting while the first is still walking pages, which would double-apply its
+    /// results and race on the bookmarks.
+    private var syncingSources: Set<DataSource> = []
 
     let isHealthAvailable: Bool
 
@@ -115,7 +115,10 @@ final class HealthDataStore {
         #if DEBUG
         // Preview mode runs entirely on generated data and never touches the real cache, so
         // there is no way for sample sessions to contaminate a genuine history.
-        if SampleData.isPreview {
+        // LYFE_HEALTH_EMPTY keeps the preview auth bypass but skips the generated history,
+        // which is how the first-run empty state is exercised.
+        if SampleData.isPreview,
+           ProcessInfo.processInfo.environment["LYFE_HEALTH_EMPTY"] != "1" {
             let sample = HealthSampleData.generate()
             workouts = sample.workouts
             snapshots = sample.snapshots
@@ -187,7 +190,8 @@ final class HealthDataStore {
     /// Read from Apple Health. Incremental unless a full history is requested.
     func syncAppleHealth(fullHistory: Bool = false) async {
         guard isHealthAvailable else { return }
-        syncTasks[.appleHealth]?.cancel()
+        guard syncingSources.insert(.appleHealth).inserted else { return }
+        defer { syncingSources.remove(.appleHealth) }
 
         connections[.appleHealth] = .syncing(progress: nil, detail: "Reading Apple Health")
 
@@ -262,7 +266,6 @@ final class HealthDataStore {
     }
 
     func disconnectHevy() async {
-        syncTasks[.hevy]?.cancel()
         KeychainStore.delete(.hevyAPIKey)
         // Drop the synced sessions but keep everything else.
         workouts.removeAll { $0.origin.source == .hevy }
@@ -281,7 +284,8 @@ final class HealthDataStore {
             connections[.hevy] = .notConnected
             return
         }
-        syncTasks[.hevy]?.cancel()
+        guard syncingSources.insert(.hevy).inserted else { return }
+        defer { syncingSources.remove(.hevy) }
 
         let api = HevyAPI(apiKey: key)
         connections[.hevy] = .syncing(progress: nil, detail: "Connecting to Hevy")
@@ -800,8 +804,8 @@ final class HealthDataStore {
     // MARK: - Maintenance
 
     func disconnectAll() async {
-        for task in syncTasks.values { task.cancel() }
         analysisTask?.cancel()
+        syncingSources = []
         KeychainStore.deleteAll()
         workouts = []
         snapshots = []

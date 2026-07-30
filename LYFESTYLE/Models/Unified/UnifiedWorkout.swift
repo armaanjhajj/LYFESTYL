@@ -77,25 +77,6 @@ nonisolated struct MetricSeries: Codable, Hashable, Sendable {
         slice(from: from, to: to).mean
     }
 
-    /// The median gap between consecutive samples, which is the series' true resolution.
-    ///
-    /// Needed because resampling ONTO A FINER GRID than the source is a trap: the values only
-    /// change at the original sample times, so a naive difference between adjacent grid points
-    /// credits a whole sample interval's change to one grid step. For a cumulative series such
-    /// as distance that silently multiplies the implied speed by the ratio of the two spacings.
-    var medianSampleSpacing: Double? {
-        guard offsets.count >= 3 else { return nil }
-        var gaps: [Double] = []
-        gaps.reserveCapacity(offsets.count - 1)
-        for i in 1..<offsets.count {
-            let gap = offsets[i] - offsets[i - 1]
-            if gap > 0 { gaps.append(gap) }
-        }
-        guard !gaps.isEmpty else { return nil }
-        gaps.sort()
-        return gaps[gaps.count / 2]
-    }
-
     /// Linearly interpolate the value at an arbitrary offset.
     ///
     /// Returns nil outside the series' own span rather than extrapolating.

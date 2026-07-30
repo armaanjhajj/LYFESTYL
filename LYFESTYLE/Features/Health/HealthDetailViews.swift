@@ -17,7 +17,6 @@ import Charts
 struct InsightsListView: View {
     @Environment(HealthDataStore.self) private var store
     @State private var expandedID: String?
-    @State private var selectedKind: InsightKind?
 
     var body: some View {
         ScrollView {
