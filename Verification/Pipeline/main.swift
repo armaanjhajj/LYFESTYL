@@ -347,6 +347,65 @@ for insight in insights.prefix(8) {
     print("  [\(insight.confidence.label)] \(insight.kind.label): \(insight.headline)")
 }
 
+// MARK: - Cross-source merge
+
+// The merge is pure time matching, so its guards are worth asserting directly.
+let base = Date(timeIntervalSince1970: 1_760_000_000)
+func session(_ id: String, start: Double, minutes: Double,
+             sport: WorkoutSport, hr: Double? = nil,
+             series: MetricSeries? = nil, strength: StrengthSession? = nil) -> UnifiedWorkout {
+    let origin = SourceRef(source: strength != nil ? .hevy : .appleHealth, foreignID: id)
+    return UnifiedWorkout(
+        id: origin.uniqueKey, origin: origin, sport: sport, title: id,
+        start: base.addingTimeInterval(start),
+        end: base.addingTimeInterval(start + minutes * 60),
+        averageHeartRate: hr, heartRateSeries: series, strength: strength
+    )
+}
+
+let hrSeries = MetricSeries(offsets: (0..<60).map { Double($0) * 60 },
+                            values: (0..<60).map { 120 + Double($0 % 10) })
+let lift = StrengthSession(exercises: [
+    StrengthExercise(index: 0, name: "Bench Press", measurement: .weightReps,
+                     sets: [StrengthSet(index: 0, weightKg: 80, reps: 8)])
+])
+
+// A Hevy lift and the Apple Health copy of the same session must collapse to one, keeping
+// Hevy's sets AND the watch's heart-rate series.
+let merged = WorkoutMerge.collapseDuplicates([
+    session("hevy-lift", start: 0, minutes: 60, sport: .strengthTraining, strength: lift),
+    session("hk-lift", start: 120, minutes: 58, sport: .strengthTraining, hr: 128, series: hrSeries),
+])
+check("overlapping sessions collapse to one", merged.count == 1, "\(merged.count)")
+if let one = merged.first {
+    check("the set data survives the merge", one.strength != nil)
+    check("the heart-rate average is pulled across", one.averageHeartRate != nil)
+    check("the heart-rate SERIES is pulled across", one.heartRateSeries != nil,
+          "without it there is no zone distribution and no decoupling")
+    check("both sources are credited", !one.mergedSources.isEmpty)
+}
+
+// Back-to-back sessions must NOT merge.
+let sequential = WorkoutMerge.collapseDuplicates([
+    session("lift", start: 0, minutes: 60, sport: .strengthTraining, strength: lift),
+    session("run", start: 3900, minutes: 40, sport: .run, hr: 150),
+])
+check("back to back sessions stay separate", sequential.count == 2, "\(sequential.count)")
+
+// Different families at the same instant must NOT merge.
+let concurrent = WorkoutMerge.collapseDuplicates([
+    session("lift2", start: 0, minutes: 60, sport: .strengthTraining, strength: lift),
+    session("run2", start: 0, minutes: 60, sport: .run, hr: 150),
+])
+check("different sports at the same time stay separate", concurrent.count == 2, "\(concurrent.count)")
+
+// A brief overlap is not the same session.
+let brief = WorkoutMerge.collapseDuplicates([
+    session("longRun", start: 0, minutes: 90, sport: .run, hr: 145),
+    session("shortRun", start: 300, minutes: 8, sport: .run, hr: 150),
+])
+check("a brief overlap does not merge", brief.count == 2, "\(brief.count)")
+
 // MARK: - Report
 
 print("\n\(checks) checks")
