@@ -65,10 +65,16 @@ nonisolated struct JournalEntry: Identifiable, Codable, Hashable {
     var title: String?
     /// The user's organized answers from the guided flow.
     var fields: [EntryField]
-    /// For ACTIVITY entries: the structured workout (exercises + optional sets).
-    /// Nil for every other category and for free-text activity we couldn't parse
-    /// into movements. Rides the same pipeline + CloudKit sync as everything else.
+    /// LEGACY. Hand-logged sessions used to hang off the entry like this. Workouts are now
+    /// `UnifiedWorkout`s in one training history alongside Hevy, Garmin and Apple Health, so
+    /// nothing writes this any more. It is still decoded so entries saved before the change can
+    /// be migrated (see `LegacyWorkoutBridge`), and is never cleared, so no data is lost.
     var workout: WorkoutPayload?
+
+    /// The `UnifiedWorkout` this entry was promoted into, when the on-device model found a
+    /// session in it. The entry keeps the raw words; the workout carries the structure and is
+    /// what the timeline shows, so one logged session appears exactly once.
+    var promotedWorkoutID: String?
 
     var createdAt: Date
     /// The calendar day the entry belongs to (auto-stamped to "today").
@@ -89,6 +95,7 @@ nonisolated struct JournalEntry: Identifiable, Codable, Hashable {
         title: String? = nil,
         fields: [EntryField] = [],
         workout: WorkoutPayload? = nil,
+        promotedWorkoutID: String? = nil,
         createdAt: Date = Date(),
         entryDate: Date? = nil,
         syncedToCloud: Bool = false
@@ -104,13 +111,14 @@ nonisolated struct JournalEntry: Identifiable, Codable, Hashable {
         self.title = title
         self.fields = fields
         self.workout = workout
+        self.promotedWorkoutID = promotedWorkoutID
         self.createdAt = createdAt
         self.entryDate = entryDate ?? Calendar.current.startOfDay(for: createdAt)
         self.syncedToCloud = syncedToCloud
     }
 }
 
-extension JournalEntry {
+nonisolated extension JournalEntry {
     /// A short, human title for the Log list, prefers the clean `title`, then
     /// the trimmed raw text.
     var listTitle: String {
@@ -136,5 +144,8 @@ nonisolated enum InsightSchema {
     // v6: ACTIVITY entries can carry a structured `workout` (exercises + optional
     //     sets/reps/weight), powering the muscle-balance read in STYL. Free-written
     //     workouts are parsed into the same shape on-device.
-    static let version = 6
+    // v7: workouts moved OUT of the entry into one unified training history shared with
+    //     Hevy, Garmin and Apple Health. An entry now links to the workout it produced via
+    //     `promotedWorkoutID`; the legacy `workout` field is read-only and migrated.
+    static let version = 7
 }

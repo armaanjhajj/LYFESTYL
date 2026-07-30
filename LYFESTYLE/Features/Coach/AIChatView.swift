@@ -22,6 +22,7 @@ struct AIChatView: View {
 
     @Environment(InsightEngine.self) private var engine
     @Environment(JournalStore.self) private var store
+    @Environment(HealthDataStore.self) private var healthData
     @Environment(\.dismiss) private var dismiss
 
     @State private var chat: ChatConversation?
@@ -148,14 +149,30 @@ struct AIChatView: View {
         chat?.send(text)
     }
 
+    /// Log a suggested session into the unified training history, the same place a Hevy or
+    /// hand-built session lands.
     private func log(_ workout: WorkoutSuggestion) {
-        let exercises: [LoggedExercise] = workout.items.map { item in
+        let exercises: [StrengthExercise] = workout.items.enumerated().map { index, item in
             let match = ExerciseLibrary.shared.match(name: item.name)
             let count = max(item.sets, 1)
-            let sets = (0..<count).map { _ in ExerciseSet(reps: item.reps, weight: nil) }
-            return LoggedExercise(exerciseID: match?.id ?? "", name: match?.name ?? item.name, sets: sets)
+            let sets = (0..<count).map { StrengthSet(index: $0, reps: item.reps) }
+            return StrengthExercise(
+                index: index,
+                name: match?.name ?? item.name,
+                libraryExerciseID: match?.id,
+                measurement: .weightReps,
+                primaryTargets: (match?.primary ?? []).map { MuscleTarget.muscle($0) },
+                secondaryTargets: (match?.secondary ?? []).map { MuscleTarget.muscle($0) },
+                equipment: match?.equipment ?? .other,
+                sets: sets
+            )
         }
-        Task { await store.addWorkout(note: "", exercises: exercises, unit: .lb, source: .text) }
+        Task {
+            await healthData.logManualWorkout(
+                title: nil, notes: nil, durationSeconds: nil,
+                strength: StrengthSession(exercises: exercises)
+            )
+        }
     }
 
     private func scrollDown(_ proxy: ScrollViewProxy) {

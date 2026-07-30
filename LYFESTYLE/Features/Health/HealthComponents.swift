@@ -21,6 +21,14 @@ struct HealthSectionHeader<Accessory: View>: View {
     var subtitle: String?
     @ViewBuilder var accessory: () -> Accessory
 
+    /// With a trailing accessory. Labelled `titled:` rather than `title:` so it cannot be
+    /// confused with the plain initializer below, which takes its title unlabelled.
+    init(titled title: String, subtitle: String? = nil, @ViewBuilder accessory: @escaping () -> Accessory) {
+        self.title = title
+        self.subtitle = subtitle
+        self.accessory = accessory
+    }
+
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 2) {
@@ -41,7 +49,7 @@ struct HealthSectionHeader<Accessory: View>: View {
 
 extension HealthSectionHeader where Accessory == EmptyView {
     init(_ title: String, subtitle: String? = nil) {
-        self.init(title: title, subtitle: subtitle, accessory: { EmptyView() })
+        self.init(titled: title, subtitle: subtitle, accessory: { EmptyView() })
     }
 }
 

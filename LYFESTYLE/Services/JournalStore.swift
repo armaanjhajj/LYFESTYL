@@ -38,6 +38,11 @@ final class JournalStore {
     private var deletedEntryIDs: Set<UUID> = []
 
     private let engine: InsightEngine
+    /// The unified training history. A free-written session is promoted into a real workout
+    /// there rather than being stored on the entry, so hand-logged and synced sessions are the
+    /// same kind of thing and are analysed by the same code. Weak to avoid a retain cycle,
+    /// since the health store outlives this one and both are owned by the app.
+    weak var healthData: HealthDataStore?
     private let local = LocalStore()
     private let service = CloudKitService()
     private var userID: UUID?
@@ -136,37 +141,6 @@ final class JournalStore {
         return entry.id
     }
 
-    /// Structured workout path (the ACTIVITY logger): the user picked exercises and
-    /// (optionally) logged sets. Nothing needs the model, so it finishes instantly.
-    /// `note` is the optional free-text they added.
-    @discardableResult
-    func addWorkout(
-        note: String,
-        exercises: [LoggedExercise],
-        unit: WeightUnit,
-        source: EntrySource
-    ) async -> UUID? {
-        let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !exercises.isEmpty || !trimmedNote.isEmpty else { return nil }
-
-        let payload = exercises.isEmpty ? nil : WorkoutPayload(exercises: exercises, unit: unit)
-        let entry = JournalEntry(
-            userID: userID,
-            rawText: trimmedNote,
-            source: source,
-            status: .processed,
-            category: .activity,
-            title: Self.workoutTitle(note: trimmedNote, payload: payload),
-            workout: payload
-        )
-        entries.insert(entry, at: 0)
-        savedTick += 1
-        await persist()
-
-        await process(entryID: entry.id)
-        return entry.id
-    }
-
     /// Free-written workout path (the ACTIVITY logger's "just write it" mode): save
     /// the note now and let the on-device model derive the movements in the
     /// pipeline (matched to the library), keeping the raw note alongside.
@@ -196,20 +170,13 @@ final class JournalStore {
         await addFreeWrite(text: text, source: source)
     }
 
-    /// A clean, neutral title for a logged workout: prefer the user's note, else
-    /// name the one or two body systems it worked ("Legs & Core"), else "Workout".
-    static func workoutTitle(note: String, payload: WorkoutPayload?) -> String {
+    /// A clean, neutral title for a written activity note: the first line, or a plain fallback.
+    /// Structured sessions are named by the training history itself.
+    static func activityTitle(note: String) -> String {
         let trimmed = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty {
-            let firstLine = trimmed.split(whereSeparator: \.isNewline).first.map(String.init) ?? trimmed
-            return String(firstLine.prefix(60))
-        }
-        let systems = payload?.systemsWorked ?? []
-        switch systems.count {
-        case 0:  return "Workout"
-        case 1:  return "\(systems[0].label.capitalized) workout"
-        default: return "\(systems[0].label.capitalized) & \(systems[1].label.capitalized)"
-        }
+        guard !trimmed.isEmpty else { return "Workout" }
+        let firstLine = trimmed.split(whereSeparator: \.isNewline).first.map(String.init) ?? trimmed
+        return String(firstLine.prefix(60))
     }
 
     /// A clean, deterministic title for a guided entry, no model needed: prefer
@@ -277,13 +244,30 @@ final class JournalStore {
                 }
 
                 do {
-                    let exercises = try await engine.parseWorkout(entry.rawText)
+                    let unit = healthData?.preferredWeightUnit ?? .lb
+                    let exercises = try await engine.parseWorkout(entry.rawText, weightUnit: unit)
                     guard !deletedEntryIDs.contains(entryID) else { return }
-                    if !exercises.isEmpty {
-                        entry.workout = WorkoutPayload(exercises: exercises)
+
+                    // Promote the parsed session into the unified history. The entry keeps the
+                    // raw words; the workout carries the structure. That way one logged session
+                    // shows up exactly once, and it is scored and analysed identically to a
+                    // session synced from Hevy or a watch.
+                    if !exercises.isEmpty, let healthData {
+                        let session = StrengthSession(exercises: exercises)
+                        let promoted = await healthData.logManualWorkout(
+                            title: entry.title,
+                            notes: entry.rawText,
+                            start: entry.createdAt,
+                            durationSeconds: nil,
+                            strength: session
+                        )
+                        entry.promotedWorkoutID = promoted?.id
+                        if (entry.title ?? "").isEmpty {
+                            entry.title = promoted?.title
+                        }
                     }
                     if (entry.title ?? "").isEmpty {
-                        entry.title = Self.workoutTitle(note: entry.rawText, payload: entry.workout)
+                        entry.title = Self.activityTitle(note: entry.rawText)
                     }
                     entry.status = .processed
                     update(entry)

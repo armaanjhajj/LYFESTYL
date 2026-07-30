@@ -14,25 +14,6 @@ enum SampleData {
     static let isPreview = ProcessInfo.processInfo.environment["LYFE_PREVIEW"] == "1"
     static let userID = UUID(uuidString: "00000000-0000-0000-0000-0000000000AA")!
 
-    /// Measured HealthKit values for previews (so STYL shows the measured lane).
-    static let healthSummary = HealthSummary(
-        metrics: [
-            MeasuredMetric(kind: .steps, value: 8243, asOf: Date()),
-            MeasuredMetric(kind: .activeEnergy, value: 540, asOf: Date()),
-            MeasuredMetric(kind: .exerciseMinutes, value: 38, asOf: Date()),
-            MeasuredMetric(kind: .walkingRunningDistance, value: 3.4, asOf: Date()),
-            MeasuredMetric(kind: .restingHeartRate, value: 58, asOf: Date()),
-            MeasuredMetric(kind: .heartRateVariability, value: 62, asOf: Date()),
-            MeasuredMetric(kind: .sleepHours, value: 7.2, asOf: Date()),
-        ],
-        asOf: Date(), authorized: true, available: true
-    )
-
-    static let healthBaselines: [HealthMetricKind: Double] = [
-        .steps: 7600, .activeEnergy: 500, .exerciseMinutes: 32,
-        .restingHeartRate: 56, .heartRateVariability: 65, .sleepHours: 7.0,
-    ]
-
     /// A couple of weeks of varied entries so every surface (and the charts) has
     /// something real to show. Each entry carries ONE category, a clean title, and
     /// the user's own organized fields, no ranks, no estimated numbers.

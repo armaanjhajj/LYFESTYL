@@ -9,8 +9,9 @@
 //  the session, and the on-device model organizes it into the same structured
 //  movements behind the scenes.
 //
-//  Saving hands the whole thing to the store, which files it as one ACTIVITY entry
-//  and feeds the muscle balance in STYL.
+//  Saving records a `UnifiedWorkout` in the SAME training history as Hevy, Garmin and Apple
+//  Health. A session you build here and the identical session synced from an app are the same
+//  kind of thing: same model, same scoring, same analysis, one activity list.
 //
 
 import SwiftUI
@@ -21,11 +22,17 @@ struct ActivityLoggerView: View {
     let onComplete: () -> Void
 
     @Environment(JournalStore.self) private var store
+    @Environment(HealthDataStore.self) private var healthData
+    @Environment(InsightEngine.self) private var engine
+    @Environment(UnitPreference.self) private var units
 
-    @State private var exercises: [LoggedExercise] = []
-    @State private var unit: WeightUnit = .lb
+    @State private var exercises: [StrengthExercise] = []
     @State private var note = ""
     @State private var showPicker = false
+    @State private var isSaving = false
+
+    /// Weights are typed in the user's own unit and stored canonically in kilograms.
+    private var unit: WeightUnit { units.weightUnit }
 
     var body: some View {
         ScrollView {
@@ -37,15 +44,28 @@ struct ActivityLoggerView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
-                Button("Save") { save() }
-                    .fontWeight(.semibold)
-                    .disabled(!canSave)
+                if isSaving {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Button("Save") { save() }
+                        .fontWeight(.semibold)
+                        .disabled(!canSave)
+                }
             }
         }
         .sheet(isPresented: $showPicker) {
             ExercisePickerView { chosen in
                 for ex in chosen {
-                    exercises.append(LoggedExercise(exerciseID: ex.id, name: ex.name, sets: []))
+                    exercises.append(StrengthExercise(
+                        index: exercises.count,
+                        name: ex.name,
+                        libraryExerciseID: ex.id,
+                        measurement: .weightReps,
+                        primaryTargets: ex.primary.map { MuscleTarget.muscle($0) },
+                        secondaryTargets: ex.secondary.map { MuscleTarget.muscle($0) },
+                        equipment: ex.equipment,
+                        sets: []
+                    ))
                 }
             }
         }
@@ -59,7 +79,10 @@ struct ActivityLoggerView: View {
                 Text("EXERCISES")
                     .blackCaps(.footnote, tracking: 1, color: .appTextMuted)
                 Spacer()
-                Picker("Unit", selection: $unit) {
+                Picker("Unit", selection: Binding(
+                    get: { units.weightUnit },
+                    set: { units.weightUnit = $0 }
+                )) {
                     ForEach(WeightUnit.allCases) { Text($0.label).tag($0) }
                 }
                 .pickerStyle(.segmented)
@@ -115,8 +138,8 @@ struct ActivityLoggerView: View {
                     Text(logged.name)
                         .font(.body.weight(.semibold))
                         .foregroundStyle(.appTextEmphasis)
-                    if let ex = logged.exercise {
-                        Text(ex.muscleSummary)
+                    if !logged.allTargets.isEmpty {
+                        Text(logged.allTargets.map(\.label).joined(separator: " · "))
                             .font(.caption)
                             .foregroundStyle(.appTextMuted)
                     }
@@ -217,7 +240,7 @@ struct ActivityLoggerView: View {
     // MARK: - Set / exercise mutation
 
     private func addSet(_ e: Int) {
-        exercises[e].sets.append(ExerciseSet())
+        exercises[e].sets.append(StrengthSet(index: exercises[e].sets.count))
     }
 
     private func removeSet(_ e: Int, _ s: Int) {
@@ -240,15 +263,21 @@ struct ActivityLoggerView: View {
         )
     }
 
+    /// Weights are typed in the display unit and stored in kilograms, converting both ways so
+    /// switching lb and kg mid-session never rewrites what was already entered.
     private func weightBinding(_ e: Int, _ s: Int) -> Binding<String> {
         Binding(
             get: {
-                guard let w = exercises[e].sets[s].weight else { return "" }
-                return w.truncatingRemainder(dividingBy: 1) == 0 ? String(Int(w)) : String(w)
+                guard let kg = exercises[e].sets[s].weightKg else { return "" }
+                let shown = unit.fromKilograms(kg)
+                let rounded = (shown * 100).rounded() / 100
+                return rounded.truncatingRemainder(dividingBy: 1) == 0
+                    ? String(Int(rounded)) : String(rounded)
             },
             set: { newValue in
                 let filtered = newValue.filter { $0.isNumber || $0 == "." }
-                exercises[e].sets[s].weight = filtered.isEmpty ? nil : Double(filtered)
+                exercises[e].sets[s].weightKg = filtered.isEmpty
+                    ? nil : Double(filtered).map { unit.toKilograms($0) }
             }
         )
     }
@@ -260,14 +289,35 @@ struct ActivityLoggerView: View {
     private var canSave: Bool { !exercises.isEmpty || !trimmedNote.isEmpty }
 
     private func save() {
-        if !exercises.isEmpty {
-            // A built session; the note rides along as free-text context.
-            Task { await store.addWorkout(note: note, exercises: exercises, unit: unit, source: source) }
-        } else if !trimmedNote.isEmpty {
-            // No structured exercises: let the on-device model organize the written
-            // session into movements (kept alongside the raw note).
-            Task { await store.addActivityNote(text: trimmedNote, source: source) }
+        isSaving = true
+        Task {
+            if !exercises.isEmpty {
+                // A session built by hand goes straight into the training history.
+                await healthData.logManualWorkout(
+                    title: nil,
+                    notes: trimmedNote.isEmpty ? nil : trimmedNote,
+                    durationSeconds: nil,
+                    strength: StrengthSession(exercises: exercises)
+                )
+            } else if !trimmedNote.isEmpty {
+                // Nothing structured: let the on-device model read the written session into
+                // movements. It lands in the same history, so a described session and a built
+                // one are indistinguishable afterwards. If the model is unavailable the words
+                // are still kept as a journal entry and promoted later.
+                if let parsed = try? await engine.parseWorkout(trimmedNote, weightUnit: unit),
+                   !parsed.isEmpty {
+                    await healthData.logManualWorkout(
+                        title: nil,
+                        notes: trimmedNote,
+                        durationSeconds: nil,
+                        strength: StrengthSession(exercises: parsed)
+                    )
+                } else {
+                    await store.addActivityNote(text: trimmedNote, source: source)
+                }
+            }
+            isSaving = false
+            onComplete()
         }
-        onComplete()
     }
 }

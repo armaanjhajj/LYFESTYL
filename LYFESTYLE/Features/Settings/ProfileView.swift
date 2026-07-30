@@ -12,7 +12,7 @@ struct ProfileView: View {
     @Environment(AuthManager.self) private var auth
     @Environment(InsightEngine.self) private var engine
     @Environment(JournalStore.self) private var store
-    @Environment(HealthService.self) private var health
+    @Environment(HealthDataStore.self) private var healthData
     @Environment(\.dismiss) private var dismiss
     @State private var showSignOutConfirm = false
 
@@ -66,8 +66,9 @@ struct ProfileView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         Spacer(minLength: 8)
-                        if health.isHealthAvailable, !health.hasRequestedAuthorization {
-                            Button("Connect") { Task { await health.requestAuthorization() } }
+                        if healthData.isHealthAvailable,
+                           healthData.connections[.appleHealth]?.isConnected != true {
+                            Button("Connect") { Task { await healthData.connectAppleHealth() } }
                                 .font(.subheadline.weight(.semibold))
                                 .buttonStyle(.borderless)
                                 .tint(.appAccent)
@@ -124,15 +125,15 @@ struct ProfileView: View {
     }
 
     private var healthTitle: String {
-        if !health.isHealthAvailable { return "Not available on this device" }
-        return health.hasRequestedAuthorization ? "Connected" : "Not connected"
+        if !healthData.isHealthAvailable { return "Not available on this device" }
+        return healthData.connections[.appleHealth]?.isConnected == true ? "Connected" : "Not connected"
     }
 
     private var healthMessage: String {
-        if !health.isHealthAvailable {
+        if !healthData.isHealthAvailable {
             return "This device doesn't provide Apple Health data."
         }
-        if health.hasRequestedAuthorization {
+        if healthData.connections[.appleHealth]?.isConnected == true {
             return "Measured activity, heart, and sleep appear on STYL when available. Manage access in the Health app under Sharing."
         }
         return "Connect to add measured data to your STYL status and check-ins. Read on-device only."

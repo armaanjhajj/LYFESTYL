@@ -33,7 +33,7 @@ swiftc -DDEBUG -O -o /tmp/lyfe-pipe \
   LYFESTYLE/Models/Workout.swift LYFESTYLE/Models/JournalEntry.swift \
   LYFESTYLE/DesignSystem/SolarizedPalette.swift LYFESTYLE/DesignSystem/Formatting.swift \
   LYFESTYLE/DesignSystem/InsightCategory.swift \
-  LYFESTYLE/Services/WorkoutMerge.swift \
+  LYFESTYLE/Services/WorkoutMerge.swift LYFESTYLE/Models/TimelineItem.swift \
   Verification/Pipeline/SampleHistory.swift Verification/Pipeline/main.swift || status=1
 /tmp/lyfe-pipe || status=1
 

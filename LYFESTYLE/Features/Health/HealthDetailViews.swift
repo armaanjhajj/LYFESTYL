@@ -86,7 +86,8 @@ struct ActivityFeedView: View {
                                 WorkoutRow(
                                     workout: workout,
                                     load: store.analysis?.load(for: workout.id),
-                                    metric: units.isMetricDistance
+                                    metric: units.isMetricDistance,
+                                    compact: true
                                 )
                             }
                             .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
@@ -222,7 +223,7 @@ struct MetricDetailView: View {
     private var chartCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             HealthSectionHeader(
-                title: metric.label.uppercased(),
+                titled: metric.label.uppercased(),
                 subtitle: "\(points.count) readings"
             ) {
                 if let latest = points.last {

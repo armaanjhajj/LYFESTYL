@@ -68,14 +68,31 @@ database, gated by Sign in with Apple.
 
 ---
 
-## TRAIN: Garmin, Hevy and Apple Health in one place
+## One history, one dashboard
 
-The TRAIN tab aggregates every source of training and wellness data into one
-history, then analyses it. Runs, rides, swims, lifting sessions, sleep, heart-rate
-variability and body composition all normalize into the same canonical types, so a
-Garmin trail run and a Hevy lifting session sit in one feed and feed one model.
+The app has two surfaces and no seams between them.
+
+**LYFE** is a single chronological history of everything you have recorded: a
+thought you wrote, a meal, a night's sleep, a Hevy lifting session, a run off a
+watch, a workout you built here. Grouped by day, one row style throughout. You
+never have to remember which app a session came from in order to find it.
+
+**STYL** is a single dashboard over all of it: how recovered you are, what your
+training load is doing, what the analysis found, today's measured numbers, weekly
+volume by muscle, and what else you have been logging.
+
+There is deliberately no separate place for "synced" and "manual" data. A session
+you type in and the identical session synced from Hevy become the same
+`UnifiedWorkout`, are scored by the same code, and appear in the same figures. The
+journal adds what training data cannot see, which is nutrition, mind and social,
+so those sit alongside rather than on their own screen.
+
+Runs, rides, swims, lifting sessions, sleep, heart-rate variability and body
+composition all normalize into the same canonical types.
 
 ### Connecting each source
+
+Connections live behind the link icon in STYL's toolbar.
 
 | Source | How | What you get |
 | --- | --- | --- |

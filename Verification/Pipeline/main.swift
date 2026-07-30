@@ -353,8 +353,9 @@ for insight in insights.prefix(8) {
 let base = Date(timeIntervalSince1970: 1_760_000_000)
 func session(_ id: String, start: Double, minutes: Double,
              sport: WorkoutSport, hr: Double? = nil,
-             series: MetricSeries? = nil, strength: StrengthSession? = nil) -> UnifiedWorkout {
-    let origin = SourceRef(source: strength != nil ? .hevy : .appleHealth, foreignID: id)
+             series: MetricSeries? = nil, strength: StrengthSession? = nil,
+             source: DataSource? = nil) -> UnifiedWorkout {
+    let origin = SourceRef(source: source ?? (strength != nil ? .hevy : .appleHealth), foreignID: id)
     return UnifiedWorkout(
         id: origin.uniqueKey, origin: origin, sport: sport, title: id,
         start: base.addingTimeInterval(start),
@@ -405,6 +406,57 @@ let brief = WorkoutMerge.collapseDuplicates([
     session("shortRun", start: 300, minutes: 8, sport: .run, hr: 150),
 ])
 check("a brief overlap does not merge", brief.count == 2, "\(brief.count)")
+
+// MARK: - Unified timeline
+
+// The single history is the whole point of the app, so the rule that keeps one logged session
+// from appearing twice is worth asserting rather than trusting.
+let noteEntry = JournalEntry(rawText: "Lunch was good", source: .text, status: .processed,
+                             category: .nutrition, title: "Lunch")
+let promotedEntry = JournalEntry(rawText: "Squats 3x5", source: .text, status: .processed,
+                                 category: .activity, title: "Leg day",
+                                 promotedWorkoutID: "manual:x")
+let promotedWorkout = session("manual:x", start: 0, minutes: 45,
+                              sport: .strengthTraining, strength: lift, source: .manual)
+let syncedWorkout = session("hevy-1", start: 90_000, minutes: 50,
+                            sport: .strengthTraining, strength: lift)
+
+let timeline = TimelineItem.build(
+    entries: [noteEntry, promotedEntry],
+    workouts: [promotedWorkout, syncedWorkout]
+)
+check("the timeline holds entries and workouts together", timeline.count == 3, "\(timeline.count)")
+check("a promoted entry is not shown twice",
+      !timeline.contains { if case .entry(let e) = $0 { return e.id == promotedEntry.id }; return false })
+check("the plain note survives",
+      timeline.contains { if case .entry(let e) = $0 { return e.id == noteEntry.id }; return false })
+check("both workouts are present",
+      timeline.filter(\.isWorkout).count == 2)
+check("the timeline is newest first",
+      zip(timeline, timeline.dropFirst()).allSatisfy { $0.date >= $1.date })
+check("a workout is searchable by exercise name",
+      timeline.first(where: \.isWorkout)?.searchText.lowercased().contains("bench") == true)
+check("only manual sessions are deletable",
+      timeline.filter(\.isWorkout).filter(\.isDeletable).count == 1,
+      "manual sessions can be removed here, synced ones would just come back")
+
+// The legacy bridge must be idempotent, or every launch would duplicate the history.
+let legacyPayload = WorkoutPayload(
+    exercises: [LoggedExercise(exerciseID: "", name: "Back Squat",
+                               sets: [ExerciseSet(reps: 5, weight: 225)])],
+    unit: .lb
+)
+let legacyEntry = JournalEntry(rawText: "squats", source: .text, status: .processed,
+                               category: .activity, title: "Legs", workout: legacyPayload)
+let firstPass = LegacyWorkoutBridge.migrate(entries: [legacyEntry], existing: [])
+check("a legacy entry migrates to a workout", firstPass.count == 1)
+let secondPass = LegacyWorkoutBridge.migrate(entries: [legacyEntry], existing: firstPass)
+check("migration is idempotent", secondPass.isEmpty, "\(secondPass.count) duplicates on rerun")
+if let migrated = firstPass.first {
+    // 225 lb is 102.06 kg. Converting the wrong way would inflate volume by 2.2.
+    let weight = migrated.strength?.exercises.first?.sets.first?.weightKg ?? 0
+    check("legacy pounds convert to kilograms", abs(weight - 102.058) < 0.01, fmt(weight, 3))
+}
 
 // MARK: - Report
 

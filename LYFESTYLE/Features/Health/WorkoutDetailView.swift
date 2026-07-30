@@ -284,7 +284,7 @@ struct WorkoutDetailView: View {
 
     private func seriesCard(_ title: String, series: MetricSeries, unit: String, accent: Color) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            HealthSectionHeader(title: title) {
+            HealthSectionHeader(titled: title) {
                 if let mean = series.mean {
                     Text("avg \(Formatting.decimal(mean, places: 0)) \(unit)")
                         .font(.caption)
@@ -333,7 +333,7 @@ struct WorkoutDetailView: View {
 
     private func strengthCard(_ strength: StrengthSession) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            HealthSectionHeader(title: "EXERCISES", subtitle: strength.countSummary) {
+            HealthSectionHeader(titled: "EXERCISES", subtitle: strength.countSummary) {
                 if let volume = strength.volumeLoadKg {
                     Text(Formatting.weight(kilograms: volume, unit: units.weightUnit))
                         .font(.caption.weight(.semibold))

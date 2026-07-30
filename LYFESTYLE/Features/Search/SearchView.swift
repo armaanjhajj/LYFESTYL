@@ -5,15 +5,18 @@
 //  The surface behind the tab bar's dedicated search button (CLAUDE.md §2.1:
 //  native `.searchable`, never a hand-rolled field, the magnifying glass, the
 //  glass capsule, the cancel button and the scroll behavior all come for free).
-//  Mirrors Apple Health's Search screen: a large title, a browse-by-category list
-//  while idle, and live entry results as you type. Reuses the Log's row + detail
-//  so an entry looks identical wherever it appears.
+//  Mirrors Apple Health's Search screen: a large title, a browse-by-category list while idle,
+//  and live results as you type. Searches the WHOLE history, so a Hevy session, a run off a
+//  watch and a written note are all findable in one place, and by exercise name too. Reuses the
+//  same rows as everywhere else, so a session looks identical wherever it appears.
 //
 
 import SwiftUI
 
 struct SearchView: View {
     @Environment(JournalStore.self) private var store
+    @Environment(HealthDataStore.self) private var healthData
+    @Environment(UnitPreference.self) private var units
     @State private var search = ""
     @State private var path = NavigationPath()
 
@@ -21,9 +24,12 @@ struct SearchView: View {
         search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
-    private var results: [JournalEntry] {
+    /// Everything the app knows, filtered. Workouts match on their title, sport, source and
+    /// the names of the exercises in them, which is usually how someone looks for a session.
+    private var results: [TimelineItem] {
         guard !query.isEmpty else { return [] }
-        return store.entries.filter { matches($0, query) }
+        return TimelineItem.build(entries: store.entries, workouts: healthData.workouts)
+            .filter { $0.searchText.lowercased().contains(query) }
     }
 
     var body: some View {
@@ -44,7 +50,10 @@ struct SearchView: View {
             .navigationTitle("Search")
             .navigationDestination(for: UUID.self) { EntryDetailView(entryID: $0) }
             .navigationDestination(for: InsightCategory.self) { CategoryEntriesView(category: $0) }
-            .searchable(text: $search, prompt: "Search your log")
+            .navigationDestination(for: HealthRoute.self) { route in
+                if case .workout(let id) = route { WorkoutDetailView(workoutID: id) }
+            }
+            .searchable(text: $search, prompt: "Search sessions and entries")
         }
     }
 
@@ -70,13 +79,11 @@ struct SearchView: View {
 
     private var resultsSection: some View {
         Section {
-            ForEach(results) { entry in
-                NavigationLink(value: entry.id) {
-                    EntryRowView(entry: entry)
-                }
-                .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
-                .listRowBackground(Color.clear)
-                .listRowSeparator(.hidden)
+            ForEach(results) { item in
+                resultRow(item)
+                    .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
             }
         } header: {
             Text("\(results.count) \(results.count == 1 ? "Result" : "Results")")
@@ -84,16 +91,26 @@ struct SearchView: View {
         }
     }
 
-    private func count(for category: InsightCategory) -> Int {
-        store.entries.filter { $0.category == category }.count
+    @ViewBuilder
+    private func resultRow(_ item: TimelineItem) -> some View {
+        switch item {
+        case .entry(let entry):
+            NavigationLink(value: entry.id) { EntryRowView(entry: entry) }
+        case .workout(let workout):
+            NavigationLink(value: HealthRoute.workout(workout.id)) {
+                WorkoutRow(
+                    workout: workout,
+                    load: healthData.analysis?.load(for: workout.id),
+                    metric: units.isMetricDistance
+                )
+            }
+        }
     }
 
-    private func matches(_ entry: JournalEntry, _ query: String) -> Bool {
-        entry.rawText.lowercased().contains(query)
-            || (entry.title?.lowercased().contains(query) ?? false)
-            || (entry.subtag?.lowercased().contains(query) ?? false)
-            || (entry.category?.label.lowercased().contains(query) ?? false)
-            || entry.fields.contains { $0.value.lowercased().contains(query) }
+    /// How many things are filed under a category, counting sessions as ACTIVITY.
+    private func count(for category: InsightCategory) -> Int {
+        let entries = store.entries.filter { $0.category == category && $0.promotedWorkoutID == nil }.count
+        return category == .activity ? entries + healthData.workouts.count : entries
     }
 }
 
@@ -125,17 +142,23 @@ private struct CategoryBrowseRow: View {
 
 struct CategoryEntriesView: View {
     @Environment(JournalStore.self) private var store
+    @Environment(HealthDataStore.self) private var healthData
+    @Environment(UnitPreference.self) private var units
     let category: InsightCategory
 
-    private var entries: [JournalEntry] {
-        store.entries
-            .filter { $0.category == category }
-            .sorted { $0.createdAt > $1.createdAt }
+    /// Everything filed under this category. ACTIVITY includes real sessions from every source,
+    /// not just written notes, so drilling in shows the training rather than a thin subset.
+    private var items: [TimelineItem] {
+        TimelineItem.build(
+            entries: store.entries,
+            workouts: category == .activity ? healthData.workouts : []
+        )
+        .filter { $0.category == category }
     }
 
     var body: some View {
         Group {
-            if entries.isEmpty {
+            if items.isEmpty {
                 EmptyStateView(
                     symbol: category.symbolName,
                     title: "No \(category.label) yet",
@@ -143,13 +166,11 @@ struct CategoryEntriesView: View {
                 )
             } else {
                 List {
-                    ForEach(entries) { entry in
-                        NavigationLink(value: entry.id) {
-                            EntryRowView(entry: entry)
-                        }
-                        .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
+                    ForEach(items) { item in
+                        row(item)
+                            .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
                     }
                 }
                 .listStyle(.plain)
@@ -160,5 +181,21 @@ struct CategoryEntriesView: View {
         .background(Color.appBackground)
         .navigationTitle(category.label)
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    @ViewBuilder
+    private func row(_ item: TimelineItem) -> some View {
+        switch item {
+        case .entry(let entry):
+            NavigationLink(value: entry.id) { EntryRowView(entry: entry) }
+        case .workout(let workout):
+            NavigationLink(value: HealthRoute.workout(workout.id)) {
+                WorkoutRow(
+                    workout: workout,
+                    load: healthData.analysis?.load(for: workout.id),
+                    metric: units.isMetricDistance
+                )
+            }
+        }
     }
 }

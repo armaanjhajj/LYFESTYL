@@ -2,22 +2,26 @@
 //  JournalView.swift
 //  LYFESTYL
 //
-//  The LYFE surface: the full, atomic history of every journal entry plus the
-//  create flow. Tap the top-right button to compose, it morphs from a plus into
-//  a checkmark and the tab bar slides away for a clean, full-screen editor (which
-//  is why the keyboard never shifts the surrounding layout). Save with the
-//  checkmark or the back button; the new entry lands in the list and analyzes
-//  itself on device. Entries are atomic and timestamped, no day grouping.
+//  The LYFE surface: ONE history of everything you have recorded, plus the create flow.
 //
-//  All chrome is native (NavigationStack + .toolbar get Liquid Glass for free,
-//  §2). Search lives in its own tab-bar button (SearchView); trends live in STYL.
+//  Journal entries and workouts share this list, in time order, whatever they came from: a
+//  thought you wrote, a meal, a Hevy lifting session, a run off a watch, a workout you built
+//  here. The user never has to think about which app a session came from to find it.
+//
+//  Grouped by day, because a mixed list of sessions and notes is far easier to read with day
+//  headers than as a flat run of timestamps.
+//
+//  All chrome is native (NavigationStack + .toolbar get Liquid Glass for free, §2). Search
+//  lives in its own tab-bar button; the analysis lives in STYL.
 //
 
 import SwiftUI
 
 struct JournalView: View {
     @Environment(JournalStore.self) private var store
+    @Environment(HealthDataStore.self) private var healthData
     @Environment(InsightEngine.self) private var engine
+    @Environment(UnitPreference.self) private var units
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var isEditing = false
@@ -27,8 +31,13 @@ struct JournalView: View {
     @State private var commitTrigger = 0
     @State private var path = NavigationPath()
 
-    private var entries: [JournalEntry] {
-        store.entries.sorted { $0.createdAt > $1.createdAt }
+    /// The one history: entries and workouts from every source, newest first.
+    private var timeline: [TimelineItem] {
+        TimelineItem.build(entries: store.entries, workouts: healthData.workouts)
+    }
+
+    private var days: [(day: Date, items: [TimelineItem])] {
+        TimelineItem.groupedByDay(timeline)
     }
 
     var body: some View {
@@ -42,7 +51,7 @@ struct JournalView: View {
                             .padding(.horizontal, 16)
                             .padding(.top, 8)
                     }
-                    if store.hasAnyEntries {
+                    if !timeline.isEmpty {
                         historyList
                     } else {
                         emptyState
@@ -64,6 +73,9 @@ struct JournalView: View {
             .toolbar(isEditing ? .hidden : .automatic, for: .tabBar)
             .toolbar { toolbarContent }
             .navigationDestination(for: UUID.self) { EntryDetailView(entryID: $0) }
+            .navigationDestination(for: HealthRoute.self) { route in
+                if case .workout(let id) = route { WorkoutDetailView(workoutID: id) }
+            }
             .sensoryFeedback(.success, trigger: store.savedTick)
             .sheet(isPresented: $showPicker) {
                 CategoryPickerSheet(source: .text, onFreeWrite: { startComposing() })
@@ -115,39 +127,67 @@ struct JournalView: View {
 
     private var historyList: some View {
         List {
-            ForEach(entries) { entry in
-                row(for: entry)
-                    .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-                    .swipeActions(edge: .trailing) {
-                        Button(role: .destructive) {
-                            Task { await store.deleteEntry(entry) }
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
+            ForEach(days, id: \.day) { group in
+                Section {
+                    ForEach(group.items) { item in
+                        row(for: item)
+                            .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .swipeActions(edge: .trailing) {
+                                if item.isDeletable {
+                                    Button(role: .destructive) { delete(item) } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
+                            }
                     }
+                } header: {
+                    Text(Formatting.relativeDay(group.day).uppercased())
+                        .font(.caption)
+                        .fontWeight(.black)
+                        .tracking(0.8)
+                        .foregroundStyle(.appTextMuted)
+                }
             }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .refreshable { await store.refresh() }
+        .refreshable {
+            await store.refresh()
+            await healthData.refreshAll()
+        }
     }
 
     @ViewBuilder
-    private func row(for entry: JournalEntry) -> some View {
-        // Processing entries aren't openable yet; everything else drills into detail.
-        // We navigate via a plain Button (not NavigationLink) so the row gets the
-        // full width with no trailing disclosure chevron.
-        if entry.status == .processed || entry.status == .failed {
-            Button {
-                path.append(entry.id)
-            } label: {
+    private func row(for item: TimelineItem) -> some View {
+        switch item {
+        case .entry(let entry):
+            // Entries still being organized are not openable yet.
+            if entry.status == .processed || entry.status == .failed {
+                Button { path.append(entry.id) } label: { EntryRowView(entry: entry) }
+                    .buttonStyle(.plain)
+            } else {
                 EntryRowView(entry: entry)
             }
+        case .workout(let workout):
+            Button { path.append(HealthRoute.workout(workout.id)) } label: {
+                WorkoutRow(
+                    workout: workout,
+                    load: healthData.analysis?.load(for: workout.id),
+                    metric: units.isMetricDistance
+                )
+            }
             .buttonStyle(.plain)
-        } else {
-            EntryRowView(entry: entry)
+        }
+    }
+
+    private func delete(_ item: TimelineItem) {
+        Task {
+            switch item {
+            case .entry(let entry):     await store.deleteEntry(entry)
+            case .workout(let workout): await healthData.deleteManualWorkout(workout)
+            }
         }
     }
 
@@ -158,9 +198,9 @@ struct JournalView: View {
             Spacer()
             LyfestylLogo(size: 56)
             VStack(spacing: 8) {
-                Text("NO ENTRIES")
+                Text("NOTHING YET")
                     .blackCaps(.title2, tracking: 1, color: .appTextEmphasis)
-                Text("To add an entry, tap the + button.")
+                Text("Tap + to log something, or connect Apple Health and Hevy in STYL to bring your training in.")
                     .font(.subheadline)
                     .foregroundStyle(.appTextMuted)
                     .multilineTextAlignment(.center)

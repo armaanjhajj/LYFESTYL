@@ -183,13 +183,15 @@ final class InsightEngine {
 
     // MARK: - Workout parsing (free-write ACTIVITY → structured movements)
 
-    /// Turn a free-written workout note into `LoggedExercise`s, resolved against
-    /// the on-device `ExerciseLibrary` so every parsed movement carries real
-    /// muscle tags. Movements the library can't match are still kept (as custom
-    /// entries) so the logged session faithfully mirrors what the user wrote.
-    /// Returns an empty array when the note isn't a workout, or when the model is
-    /// unavailable (the raw note is always preserved by the caller).
-    func parseWorkout(_ text: String) async throws -> [LoggedExercise] {
+    /// Turn a free-written workout note into canonical `StrengthExercise`es, resolved against
+    /// the on-device `ExerciseLibrary` so every parsed movement carries real muscle tags.
+    /// Movements the library cannot match are still kept, so the logged session faithfully
+    /// mirrors what the user wrote.
+    ///
+    /// Returns the same type a Hevy session produces, which is the point: a session you
+    /// describe in words and one synced from an app end up identical in shape and are analysed
+    /// by exactly the same code.
+    func parseWorkout(_ text: String, weightUnit: WeightUnit = .lb) async throws -> [StrengthExercise] {
         guard isAvailable else { throw EngineError.unavailable(availability) }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
@@ -202,26 +204,41 @@ final class InsightEngine {
                 generating: ParsedWorkout.self,
                 options: options
             )
-            return response.content.exercises.compactMap { Self.resolve($0) }
+            return response.content.exercises.enumerated().compactMap {
+                Self.resolve($1, index: $0, weightUnit: weightUnit)
+            }
         } catch let error as LanguageModelSession.GenerationError {
             refreshAvailability()
             throw EngineError.generationFailed(error.localizedDescription)
         }
     }
 
-    /// Map one parsed movement onto a `LoggedExercise`. Builds the requested
-    /// number of sets (default one) carrying any reps/weight the note specified.
-    private static func resolve(_ parsed: ParsedExercise) -> LoggedExercise? {
+    /// Map one parsed movement onto a `StrengthExercise`. Builds the requested number of sets
+    /// (default one) carrying any reps and weight the note specified.
+    ///
+    /// `weightUnit` is the unit the user writes in. The canonical model is kilograms, so the
+    /// conversion happens here; getting it backwards would inflate every volume figure by 2.2.
+    private static func resolve(_ parsed: ParsedExercise, index: Int, weightUnit: WeightUnit) -> StrengthExercise? {
         let name = parsed.name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return nil }
         let matched = ExerciseLibrary.shared.match(name: name)
         let count = max(parsed.sets ?? 1, 1)
-        let sets = (0..<count).map { _ in
-            ExerciseSet(reps: parsed.reps, weight: parsed.weight)
+        let sets = (0..<count).map { setIndex in
+            StrengthSet(
+                index: setIndex,
+                type: .normal,
+                weightKg: parsed.weight.map { weightUnit.toKilograms($0) },
+                reps: parsed.reps
+            )
         }
-        return LoggedExercise(
-            exerciseID: matched?.id ?? "",
+        return StrengthExercise(
+            index: index,
             name: matched?.name ?? name,
+            libraryExerciseID: matched?.id,
+            measurement: .weightReps,
+            primaryTargets: (matched?.primary ?? []).map { MuscleTarget.muscle($0) },
+            secondaryTargets: (matched?.secondary ?? []).map { MuscleTarget.muscle($0) },
+            equipment: matched?.equipment ?? .other,
             sets: sets
         )
     }

@@ -13,7 +13,6 @@ struct LYFESTYLEApp: App {
     @State private var auth: AuthManager
     @State private var engine: InsightEngine
     @State private var store: JournalStore
-    @State private var health: HealthService
     // The aggregation feature: connectors, the unified history, and the analysis.
     @State private var profile: AthleteProfile
     @State private var healthData: HealthDataStore
@@ -22,13 +21,19 @@ struct LYFESTYLEApp: App {
     init() {
         let engine = InsightEngine()
         let profile = AthleteProfile()
+        let store = JournalStore(engine: engine)
         _auth = State(initialValue: AuthManager())
         _engine = State(initialValue: engine)
-        _store = State(initialValue: JournalStore(engine: engine))
-        _health = State(initialValue: HealthService())
+        _store = State(initialValue: store)
         _profile = State(initialValue: profile)
-        _healthData = State(initialValue: HealthDataStore(profile: profile))
+        let healthData = HealthDataStore(profile: profile)
+        _healthData = State(initialValue: healthData)
         _units = State(initialValue: UnitPreference())
+
+        // The journal promotes a free-written session into the unified training history rather
+        // than storing it on the entry, so it needs to reach the health store.
+        store.healthData = healthData
+        healthData.preferredWeightUnit = UnitPreference().weightUnit
     }
 
     var body: some Scene {
@@ -37,7 +42,6 @@ struct LYFESTYLEApp: App {
                 .environment(auth)
                 .environment(engine)
                 .environment(store)
-                .environment(health)
                 .environment(profile)
                 .environment(healthData)
                 .environment(units)

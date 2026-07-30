@@ -483,6 +483,105 @@ final class HealthDataStore {
         }
     }
 
+    // MARK: - Manual logging
+
+    /// Record a session the user built by hand.
+    ///
+    /// Manual sessions are `UnifiedWorkout`s exactly like synced ones, which is the whole point:
+    /// a squat session you type in and the identical session synced from Hevy are scored,
+    /// analysed and counted the same way. Nothing about the analysis branches on where a
+    /// workout came from.
+    @discardableResult
+    func logManualWorkout(
+        sport: WorkoutSport = .strengthTraining,
+        title: String?,
+        notes: String?,
+        start: Date = Date(),
+        durationSeconds: Double?,
+        strength: StrengthSession?,
+        perceivedEffort: Double? = nil,
+        distanceMeters: Double? = nil,
+        calendar: Calendar = .current
+    ) async -> UnifiedWorkout? {
+        let hasContent = (strength?.isEmpty == false)
+            || (distanceMeters ?? 0) > 0
+            || (notes?.isEmpty == false)
+        guard hasContent else { return nil }
+
+        // A stable, unique identity so re-saving edits in place rather than duplicating.
+        let origin = SourceRef(
+            source: .manual,
+            foreignID: "manual-\(Int(start.timeIntervalSince1970))-\(UUID().uuidString.prefix(8))",
+            updatedAt: Date()
+        )
+
+        // With no timer, fall back to roughly three minutes per working set including rest.
+        // Explicitly an estimate, and it only feeds the duration-based load fallback.
+        let seconds = durationSeconds
+            ?? Double(max(1, strength?.workingSetCount ?? 1)) * 180
+
+        let workout = UnifiedWorkout(
+            id: origin.uniqueKey,
+            origin: origin,
+            sport: sport,
+            title: title?.isEmpty == false ? title! : Self.defaultTitle(for: sport, strength: strength, start: start),
+            notes: notes?.isEmpty == false ? notes : nil,
+            start: start,
+            end: start.addingTimeInterval(seconds),
+            movingSeconds: seconds,
+            isIndoor: sport.isIndoorByNature,
+            distanceMeters: distanceMeters,
+            perceivedEffort: perceivedEffort,
+            strength: strength,
+            calendar: calendar
+        )
+
+        merge(workouts: [workout])
+        await persist()
+        scheduleAnalysis()
+        Task { await pushToCloud() }
+        return workout
+    }
+
+    /// A neutral title when the user did not name the session.
+    private static func defaultTitle(
+        for sport: WorkoutSport,
+        strength: StrengthSession?,
+        start: Date
+    ) -> String {
+        let systems = strength?.systemsWorked ?? []
+        switch systems.count {
+        case 0:  return sport.label
+        case 1:  return "\(systems[0].label.capitalized) session"
+        default: return "\(systems[0].label.capitalized) and \(systems[1].label.capitalized)"
+        }
+    }
+
+    /// Delete a session the user logged here. Synced sessions cannot be deleted from this app,
+    /// because the next sync would simply bring them back.
+    func deleteManualWorkout(_ workout: UnifiedWorkout) async {
+        guard workout.origin.source == .manual else { return }
+        workouts.removeAll { $0.id == workout.id }
+        await persist()
+        await cloud.deleteWorkout(id: workout.id)
+        scheduleAnalysis()
+    }
+
+    // MARK: - Migration
+
+    /// Bring sessions logged before the unified model into the one history.
+    ///
+    /// Idempotent and non-destructive: identities are derived from the entry's UUID, existing
+    /// workouts always win, and the journal entries themselves are left alone. Running it on
+    /// every launch is a no-op once everything has moved across.
+    func migrateLegacyWorkouts(from entries: [JournalEntry]) async {
+        let migrated = LegacyWorkoutBridge.migrate(entries: entries, existing: workouts)
+        guard !migrated.isEmpty else { return }
+        merge(workouts: migrated)
+        await persist()
+        scheduleAnalysis()
+    }
+
     // MARK: - Merging
 
     /// Fold new sessions into the history, replacing by id and collapsing duplicates that came
@@ -580,6 +679,10 @@ final class HealthDataStore {
         dismissedInsightIDs = []
         Task { await local.saveDismissedInsightIDs([]) }
     }
+
+    /// The unit the user types weights in. Held here so the journal pipeline can convert a
+    /// free-written "225" into canonical kilograms without reaching into the UI layer.
+    var preferredWeightUnit: WeightUnit = .lb
 
     // MARK: - Preferences
 

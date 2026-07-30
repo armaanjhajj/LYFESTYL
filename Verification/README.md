@@ -66,7 +66,7 @@ implemented. Nothing the app reads depends on it.
 
 ## Analysis pipeline
 
-63 assertions over the whole chain, run against a generated 180-day history that
+81 assertions over the whole chain, run against a generated 180-day history that
 deliberately contains signals the analysis must recover: heart-rate variability
 responding to the PREVIOUS night's sleep, a bench press held flat against a
 climbing squat, and a resting-heart-rate step two thirds of the way in. If the
@@ -74,7 +74,12 @@ correlation search does not find the sleep relationship at a one-day lag, its la
 alignment is broken. If the trend test cannot tell the flat lift from the climbing
 one, it is not doing any work.
 
-It also checks invariants that catch scaling errors: no session load above 400
+It also asserts the rules that hold the unified history together: a journal entry
+promoted into a workout is not shown twice, only sessions logged in this app are
+deletable, the legacy migration is idempotent so relaunching cannot duplicate a
+history, and legacy pounds convert to kilograms rather than the other way round.
+
+And invariants that catch scaling errors: no session load above 400
 points (one hour at threshold is 100 by definition), intensity factors inside
 0.2 to 2.0, and neither fitness nor fatigue exceeding the largest single day, since
 both are exponentially weighted averages of daily load and cannot. Plus spot checks

@@ -99,6 +99,7 @@ struct CloudKitService {
         record["entryDate"] = entry.entryDate as CKRecordValue
         record["userID"] = entry.userID?.uuidString as CKRecordValue?
         record["fields"] = (try? encoder.encode(entry.fields)) as CKRecordValue?
+        record["promotedWorkoutID"] = entry.promotedWorkoutID as CKRecordValue?
         if let workout = entry.workout, let data = try? encoder.encode(workout) {
             record["workout"] = data as CKRecordValue
         } else {
@@ -133,6 +134,7 @@ struct CloudKitService {
             title: record["title"] as? String,
             fields: fields,
             workout: workout,
+            promotedWorkoutID: record["promotedWorkoutID"] as? String,
             createdAt: createdAt,
             entryDate: entryDate,
             syncedToCloud: true
