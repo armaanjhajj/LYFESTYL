@@ -2,11 +2,11 @@
 //  HealthSampleData.swift
 //  LYFESTYL
 //
-//  A synthetic training history for previews and for verifying the analysis end to end.
+//  A synthetic training history for verifying the analysis end to end.
 //
-//  DEBUG ONLY. This never ships in a release build, and it is never mixed with real data:
-//  it is only loaded when the app is launched with LYFE_PREVIEW=1, the same switch the rest
-//  of the app already uses.
+//  This lives OUTSIDE the app target on purpose. It is compiled only by the verification
+//  harness, so there is no path by which generated data can reach a running app or be
+//  confused with real training history.
 //
 //  The generator is deliberately REALISTIC rather than random, because its real job is to
 //  exercise the analysis. It produces a periodised block with build and recovery weeks, an
@@ -19,7 +19,6 @@
 //  means a change in the code rather than in the dice.
 //
 
-#if DEBUG
 import Foundation
 
 nonisolated enum HealthSampleData {
@@ -475,4 +474,3 @@ nonisolated enum HealthSampleData {
         return "\(partOfDay) \(sport.label)"
     }
 }
-#endif

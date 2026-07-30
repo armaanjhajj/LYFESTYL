@@ -22,6 +22,8 @@ Three areas of this codebase fail silently rather than loudly:
    altitude without its divisor of 5 and offset of 500 produces an altitude that is
    wrong and looks fine.
 3. **SF Symbol names.** A misspelled symbol renders as nothing at all, with no warning.
+4. **API response parsing.** A wrong key in a `Decodable` struct does not throw. The property
+   is simply nil and the app carries on with missing data.
 
 Each check caught at least one real bug when it was written.
 
@@ -88,6 +90,28 @@ individual formula was correct, which is exactly why an end-to-end check was nee
 It also caught a hamstring-to-quadriceps balance ratio that resolved both sides
 through the body-system roll-up, and since both live in LEGS returned the same
 number twice and reported 1.00 as "balanced" regardless of the data.
+
+## Hevy parser against live data
+
+```sh
+export HEVY_API_KEY=...        # from hevy.com, Settings, Developer
+./Verification/Hevy/fetch.sh   # writes to Verification/Hevy/samples (gitignored)
+./Verification/run.sh
+```
+
+20 checks that decode REAL Hevy responses through the app's own DTOs and mapper, then assert
+the fields we depend on actually arrived: both date formats parse, supersets decode, every
+exercise type and muscle group maps, muscle attribution clears 85 percent, volume load and
+estimated one-rep max land in plausible ranges, and warm-ups are excluded from working sets.
+
+**What it caught:** Hevy's published OpenAPI document is stale, and three of its claims are
+wrong against the live API. The read path returns `superset_id`, not `supersets_id`. Exercise
+templates return `equipment`, not `equipment_category`. The exercise-type enum is missing
+`bodyweight_weighted`, `bodyweight_assisted`, `floors_duration` and `steps_duration`. All
+three decoded silently to nil or `.unknown`, so the app would have shown no supersets, no
+equipment, and mis-typed exercises with nothing in any log to explain why.
+
+The samples directory holds one person's training history and is gitignored.
 
 ## SF Symbols
 

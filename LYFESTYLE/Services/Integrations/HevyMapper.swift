@@ -33,11 +33,11 @@ nonisolated struct HevyTemplateCache: Codable, Sendable {
     struct Template: Codable, Sendable, Hashable {
         var id: String
         var title: String
-        /// One of Hevy's eight exercise types, which decides what a set even means.
+        /// Hevy's exercise type, which decides what a set even means.
         var type: String?
         var primaryMuscleGroup: String?
         var secondaryMuscleGroups: [String]
-        var equipmentCategory: String?
+        var equipmentValue: String?
         var isCustom: Bool
 
         var measurement: StrengthMeasurement { StrengthMeasurement(sourceValue: type) }
@@ -53,7 +53,7 @@ nonisolated struct HevyTemplateCache: Codable, Sendable {
                 .map { MuscleTarget(sourceValue: $0) }
         }
 
-        var equipment: Equipment { HevyMapper.equipment(from: equipmentCategory) }
+        var equipment: Equipment { HevyMapper.equipment(from: equipmentValue) }
     }
 
     var templatesByID: [String: Template]
@@ -90,7 +90,7 @@ nonisolated struct HevyTemplateCache: Codable, Sendable {
                 type: dto.type,
                 primaryMuscleGroup: dto.primary_muscle_group,
                 secondaryMuscleGroups: dto.secondary_muscle_groups ?? [],
-                equipmentCategory: dto.equipment_category,
+                equipmentValue: dto.equipment,
                 isCustom: dto.is_custom ?? false
             )
         }
@@ -198,8 +198,7 @@ nonisolated enum HevyMapper {
             notes: (dto.notes?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap {
                 $0.isEmpty ? nil : $0
             },
-            // Note the plural: the read path sends `supersets_id`.
-            supersetID: dto.supersets_id,
+            supersetID: dto.superset_id,
             measurement: measurement,
             primaryTargets: primary,
             secondaryTargets: secondary,
@@ -233,7 +232,7 @@ nonisolated enum HevyMapper {
         switch (hasWeight, hasReps, hasDuration, hasDistance) {
         case (true, true, _, _):      return .weightReps
         case (true, false, true, _):  return .weightDuration
-        case (false, true, _, _):     return .bodyweightReps
+        case (false, true, _, _):     return .repsOnly
         case (false, false, true, true): return .distanceDuration
         case (false, false, true, false): return .duration
         default:                      return .unknown

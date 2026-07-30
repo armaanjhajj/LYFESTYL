@@ -837,6 +837,33 @@ nonisolated enum InsightBuilder {
             ))
         }
 
+        // Lifting sessions with neither heart rate nor RPE can only be scored from duration,
+        // which is the weakest method available. Worth saying, because both fixes are easy and
+        // the user cannot tell from the outside that their load figures are soft.
+        let strengthSessions = context.workouts.filter {
+            $0.family == .strength && context.now.timeIntervalSince($0.start) < 60 * 86400
+        }
+        let unscored = strengthSessions.filter { context.loads[$0.id]?.method == .durationOnly }
+        if strengthSessions.count >= 8,
+           Double(unscored.count) / Double(strengthSessions.count) > 0.6 {
+            insights.append(HealthInsight(
+                id: "data-strength-intensity",
+                kind: .dataQuality,
+                tone: .neutral,
+                confidence: .high,
+                headline: "LIFTING LOAD IS ESTIMATED FROM DURATION ALONE",
+                detail: "Most of your lifting sessions carry neither heart rate nor a perceived-effort rating, so the only thing left to score them by is how long they lasted. That is deliberately conservative and it is the weakest figure in your training load. Two things fix it: wear your watch while you lift, so the session's heart rate reaches Apple Health and merges with the set data, or rate the session in Hevy when you finish it. Either one turns a guess into a measurement.",
+                evidence: [
+                    InsightEvidence("Sessions affected", "\(unscored.count) of \(strengthSessions.count)",
+                                    context: "last 60 days"),
+                    InsightEvidence("Currently scored by", "duration and a conservative intensity assumption"),
+                    InsightEvidence("Would be scored by", "heart rate, or your own effort rating"),
+                ],
+                sources: context.sources,
+                priority: 24
+            ))
+        }
+
         // Explain an empty relationships section rather than showing nothing.
         if context.correlationCoverage.reportableCount == 0, context.daysOfHistory >= 14 {
             insights.append(HealthInsight(

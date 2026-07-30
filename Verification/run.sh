@@ -28,13 +28,30 @@ echo
 echo "=== Analysis pipeline ==="
 swiftc -DDEBUG -O -o /tmp/lyfe-pipe \
   LYFESTYLE/Models/Unified/*.swift LYFESTYLE/Services/Analytics/*.swift \
-  LYFESTYLE/Models/HealthSampleData.swift LYFESTYLE/Models/HealthInsight.swift \
+  LYFESTYLE/Models/HealthInsight.swift \
   LYFESTYLE/Models/Exercise.swift LYFESTYLE/Models/ExerciseLibrary.swift \
   LYFESTYLE/Models/Workout.swift LYFESTYLE/Models/JournalEntry.swift \
   LYFESTYLE/DesignSystem/SolarizedPalette.swift LYFESTYLE/DesignSystem/Formatting.swift \
   LYFESTYLE/DesignSystem/InsightCategory.swift \
-  Verification/Pipeline/main.swift || status=1
+  Verification/Pipeline/SampleHistory.swift Verification/Pipeline/main.swift || status=1
 /tmp/lyfe-pipe || status=1
+
+echo
+echo "=== Hevy parser against live data ==="
+if [ -f Verification/Hevy/samples/workouts.json ]; then
+  swiftc -O -o /tmp/lyfe-hevy \
+    LYFESTYLE/Models/Unified/*.swift LYFESTYLE/Services/Analytics/*.swift \
+    LYFESTYLE/Models/HealthInsight.swift LYFESTYLE/Models/Exercise.swift \
+    LYFESTYLE/Models/ExerciseLibrary.swift LYFESTYLE/Models/Workout.swift \
+    LYFESTYLE/Models/JournalEntry.swift LYFESTYLE/DesignSystem/SolarizedPalette.swift \
+    LYFESTYLE/DesignSystem/Formatting.swift LYFESTYLE/DesignSystem/InsightCategory.swift \
+    LYFESTYLE/Services/Integrations/HevyAPI.swift \
+    LYFESTYLE/Services/Integrations/HevyMapper.swift \
+    Verification/Hevy/main.swift || status=1
+  /tmp/lyfe-hevy Verification/Hevy/samples || status=1
+else
+  echo "  skipped: no samples. Run HEVY_API_KEY=... ./Verification/Hevy/fetch.sh"
+fi
 
 echo
 [ $status -eq 0 ] && echo "ALL SUITES PASSED" || echo "SOME SUITES FAILED"

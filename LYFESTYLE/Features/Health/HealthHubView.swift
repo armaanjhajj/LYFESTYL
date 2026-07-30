@@ -44,21 +44,6 @@ struct HealthHubView: View {
             .task {
                 await store.loadCache()
                 await store.pullFromCloud()
-                #if DEBUG
-                // Jump straight to a screen when launched with LYFE_ROUTE, which makes each
-                // surface reachable for a screenshot without driving the UI.
-                if ProcessInfo.processInfo.environment["LYFE_ROUTE"] == "connections" {
-                    showConnections = true
-                } else if ProcessInfo.processInfo.environment["LYFE_ROUTE"] == "workout",
-                          let first = store.workouts.first(where: { $0.heartRateSeries != nil }) {
-                    path.append(HealthRoute.workout(first.id))
-                } else if ProcessInfo.processInfo.environment["LYFE_ROUTE"] == "lift",
-                          let first = store.workouts.first(where: { $0.strength != nil }) {
-                    path.append(HealthRoute.workout(first.id))
-                } else if let route = HealthRoute.debugLaunchRoute {
-                    path.append(route)
-                }
-                #endif
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -384,20 +369,6 @@ enum HealthRoute: Hashable {
     case strength
     case loadDetail
 
-    #if DEBUG
-    /// Route named by the LYFE_ROUTE environment variable, for development only.
-    static var debugLaunchRoute: HealthRoute? {
-        switch ProcessInfo.processInfo.environment["LYFE_ROUTE"] {
-        case "insights": .allInsights
-        case "activity": .activityFeed
-        case "strength": .strength
-        case "load":     .loadDetail
-        case "hrv":      .metric(.heartRateVariability)
-        case "sleep":    .metric(.sleepDuration)
-        default:         nil
-        }
-    }
-    #endif
 }
 
 // MARK: - Fitness chart

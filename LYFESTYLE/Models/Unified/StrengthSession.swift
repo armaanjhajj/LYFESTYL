@@ -26,15 +26,20 @@ import Foundation
 /// therefore which analyses apply. Mirrors Hevy's exercise types so nothing is
 /// lost in translation, with an `unknown` fallback because the source can add
 /// types at any time.
-nonisolated enum StrengthMeasurement: String, Codable, Hashable, Sendable, CaseIterable {
+nonisolated /// Values verified against the live Hevy API across all 462 exercise templates. Hevy's
+/// published OpenAPI enum is incomplete: it omits `floors_duration` and `steps_duration`,
+/// and names two of the bodyweight variants differently from what the API returns.
+enum StrengthMeasurement: String, Codable, Hashable, Sendable, CaseIterable {
     case weightReps             // load x reps, the classic barbell/dumbbell lift
     case repsOnly               // reps with no load recorded
-    case bodyweightReps         // bodyweight movements (pull-ups, push-ups)
-    case bodyweightAssistedReps // assisted, where weight is a negative offset
+    case bodyweightWeighted     // bodyweight plus added load (weighted pull-ups, dips)
+    case bodyweightAssisted     // assisted, where the weight recorded is the assistance
     case duration               // timed holds (planks, dead hangs)
     case weightDuration         // loaded carries and holds
     case distanceDuration       // sled pushes, farmer walks, cardio inside a lift log
     case shortDistanceWeight    // loaded short distance work
+    case floorsDuration         // stair machines
+    case stepsDuration          // step counting over a duration
     case unknown
 
     /// Whether `weight x reps` volume load is a meaningful number here. Volume load
@@ -42,7 +47,9 @@ nonisolated enum StrengthMeasurement: String, Codable, Hashable, Sendable, CaseI
     /// timed or bodyweight work would produce a figure that looks precise and is not.
     var supportsVolumeLoad: Bool {
         switch self {
-        case .weightReps, .weightDuration, .shortDistanceWeight: true
+        // Weighted bodyweight work counts: the added load times reps is a real, comparable
+        // progression signal even though it understates total work by the athlete's mass.
+        case .weightReps, .weightDuration, .shortDistanceWeight, .bodyweightWeighted: true
         default: false
         }
     }
@@ -55,7 +62,7 @@ nonisolated enum StrengthMeasurement: String, Codable, Hashable, Sendable, CaseI
     /// Whether reps are counted at all (drives "hard sets" tallies).
     var countsReps: Bool {
         switch self {
-        case .weightReps, .repsOnly, .bodyweightReps, .bodyweightAssistedReps: true
+        case .weightReps, .repsOnly, .bodyweightWeighted, .bodyweightAssisted: true
         default: false
         }
     }
@@ -65,12 +72,14 @@ nonisolated enum StrengthMeasurement: String, Codable, Hashable, Sendable, CaseI
         switch (raw ?? "").lowercased() {
         case "weight_reps":               self = .weightReps
         case "reps_only":                 self = .repsOnly
-        case "bodyweight_reps":           self = .bodyweightReps
-        case "bodyweight_assisted_reps":  self = .bodyweightAssistedReps
+        case "bodyweight_weighted":       self = .bodyweightWeighted
+        case "bodyweight_assisted":       self = .bodyweightAssisted
         case "duration":                  self = .duration
         case "weight_duration":           self = .weightDuration
         case "distance_duration":         self = .distanceDuration
         case "short_distance_weight":     self = .shortDistanceWeight
+        case "floors_duration":           self = .floorsDuration
+        case "steps_duration":            self = .stepsDuration
         default:                          self = .unknown
         }
     }

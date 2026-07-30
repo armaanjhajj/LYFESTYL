@@ -18,9 +18,10 @@
 //      at 100 only for exercise templates. Asking for more is a 400.
 //    - Timestamps are ISO 8601 with a literal Z but are typed as plain strings with no
 //      fractional-second guarantee, so parsing tries both forms.
-//    - Read and write use DIFFERENT field names for the same concept: `supersets_id`
-//      when reading, `superset_id` when writing. This client only reads, and names the
-//      key exactly as the read path sends it.
+//    - The published OpenAPI document is STALE in places. Two field names in it do not
+//      match what the live API returns (`supersets_id` and `equipment_category`), and the
+//      exercise-type enum is missing four values. Every name here was checked against real
+//      responses, because a wrong key decodes silently to nil rather than failing.
 //    - Almost nothing is in an OpenAPI `required` block, so effectively every field is
 //      optional and is modelled that way.
 //    - There is no webhook support. `/v1/workouts/events?since=` is the sanctioned
@@ -99,9 +100,11 @@ nonisolated struct HevyExerciseDTO: Decodable, Sendable {
     var title: String?
     var notes: String?
     var exercise_template_id: String?
-    /// Note the plural: the READ path sends `supersets_id`, the write path expects
-    /// `superset_id`. This is a verified asymmetry in Hevy's own schema.
-    var supersets_id: Int?
+    /// Hevy's published OpenAPI document calls this `supersets_id` on the read path, but
+    /// the live API actually returns `superset_id`. Verified against real responses: 44 of
+    /// 50 sampled workouts contained supersets, and the spec name decoded to nil for all of
+    /// them. The live name wins.
+    var superset_id: Int?
     var sets: [HevySetDTO]?
 }
 
@@ -125,8 +128,8 @@ nonisolated struct HevyExerciseTemplateDTO: Decodable, Sendable {
     var type: String?
     var primary_muscle_group: String?
     var secondary_muscle_groups: [String]?
-    /// Note: `equipment_category`, not `equipment`.
-    var equipment_category: String?
+    /// Likewise, the spec calls this `equipment_category`; the live API returns `equipment`.
+    var equipment: String?
     var is_custom: Bool?
 }
 
