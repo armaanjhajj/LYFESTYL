@@ -27,7 +27,7 @@ struct OnboardingView: View {
               body: "Type or talk like a voice memo. “Woke up sore, ran a mile, ate like garbage.” No forms, no fields, no friction."),
         .init(symbol: "cpu.fill", tint: Solar.green,
               title: "ON-DEVICE AI",
-              body: "Apple's on-device model breaks every entry into nutrition, activity, sleep, and health — with real estimates. No servers, no API keys, no cost."),
+              body: "Apple's on-device model breaks every entry into nutrition, activity, sleep, and health, with real estimates. No servers, no API keys, no cost."),
         .init(symbol: "lock.shield.fill", tint: Solar.violet,
               title: "PRIVATE BY DESIGN",
               body: "The analysis never leaves your phone. Your structured history syncs to your own account so you can watch the trends build."),
@@ -46,7 +46,7 @@ struct OnboardingView: View {
                             .blackCaps(.largeTitle, tracking: 1, color: .appTextEmphasis)
                             .multilineTextAlignment(.center)
                         Text(item.body)
-                            .font(.body)
+                            .font(.body.weight(.medium))
                             .foregroundStyle(.appText)
                             .multilineTextAlignment(.center)
                             .frame(maxWidth: 340)

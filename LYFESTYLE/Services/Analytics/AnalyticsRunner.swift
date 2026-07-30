@@ -143,7 +143,8 @@ actor AnalyticsRunner {
         let muscleVolume = StrengthAnalysis.muscleVolume(
             workouts: sessions, now: now, calendar: calendar
         )
-        let balance = StrengthAnalysis.balanceRatios(muscleVolume)
+        let muscleSets = StrengthAnalysis.musclesSets(workouts: sessions, now: now, calendar: calendar)
+        let balance = StrengthAnalysis.balanceRatios(muscleVolume, muscleSets: muscleSets)
         let plateaus = StrengthAnalysis.plateauChecks(progress)
         let records = StrengthAnalysis.recentRecords(progress, now: now)
 

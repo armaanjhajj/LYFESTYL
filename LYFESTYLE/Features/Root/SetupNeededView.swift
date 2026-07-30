@@ -11,12 +11,12 @@ import SwiftUI
 struct SetupNeededView: View {
     var body: some View {
         VStack(spacing: 28) {
-            LyfestylLogo(size: 56, accentSecondLine: true)
+            LyfestylLogo(size: 56)
 
             VStack(spacing: 12) {
                 Text("ALMOST THERE")
                     .blackCaps(.title2, color: .appTextEmphasis)
-                Text("Add your Supabase keys to finish setup. The on-device AI needs no key — only Supabase storage does.")
+                Text("Sign into iCloud in Settings to sync your entries across devices. Everything works on device in the meantime, and the on-device AI needs no account at all.")
                     .font(.subheadline)
                     .foregroundStyle(.appTextMuted)
                     .multilineTextAlignment(.center)
@@ -25,7 +25,7 @@ struct SetupNeededView: View {
             VStack(alignment: .leading, spacing: 14) {
                 step(1, "Copy", "Secrets.example.plist → LYFESTYLE/Secrets.plist")
                 step(2, "Paste", "your Project URL and the publishable key (sb_publishable_…)")
-                step(3, "Run", "build & launch again — you're in")
+                step(3, "Run", "build & launch again, you're in")
             }
             .cardSurface(padding: 18)
             .frame(maxWidth: 360)

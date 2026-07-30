@@ -2,7 +2,7 @@
 //  LaunchView.swift
 //  LYFESTYL
 //
-//  Shown while the persisted Supabase session is being restored.
+//  Shown while the persisted sign-in session is being restored.
 //
 
 import SwiftUI
@@ -12,17 +12,16 @@ struct LaunchView: View {
     @State private var pulse = false
 
     var body: some View {
-        VStack(spacing: 24) {
-            LyfestylLogo(size: 64, accentSecondLine: true)
-                .opacity(reduceMotion ? 1 : (pulse ? 1 : 0.55))
-                .animation(
-                    reduceMotion ? nil : .easeInOut(duration: 1).repeatForever(autoreverses: true),
-                    value: pulse
-                )
-            ProgressView()
-                .tint(.appTextMuted)
-        }
-        .onAppear { if !reduceMotion { pulse = true } }
+        Image("Logo")
+            .resizable()
+            .scaledToFit()
+            .frame(width: 180, height: 180)
+            .opacity(reduceMotion ? 1 : (pulse ? 1 : 0.6))
+            .animation(
+                reduceMotion ? nil : .easeInOut(duration: 1).repeatForever(autoreverses: true),
+                value: pulse
+            )
+            .onAppear { if !reduceMotion { pulse = true } }
     }
 }
 

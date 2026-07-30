@@ -136,6 +136,14 @@ nonisolated enum InsightBuilder {
                 detail = delta > 0
                     ? "All-day stress is above your usual range on Garmin's measure."
                     : "All-day stress is below your usual range."
+            case .sleepDuration:
+                detail = delta > 0
+                    ? "You slept longer than your usual range."
+                    : "You slept less than your usual range. A single short night matters far less than a run of them, so this is worth watching rather than reacting to."
+            case .sleepEfficiency:
+                detail = delta > 0
+                    ? "You spent more of your time in bed actually asleep than usual."
+                    : "More of your time in bed was spent awake than usual. Efficiency is asleep time as a share of time in bed, so it moves with restlessness rather than with how long you were down for."
             default:
                 detail = "\(metric.label) is \(direction) than your usual range."
             }

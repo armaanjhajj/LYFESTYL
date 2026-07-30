@@ -3,7 +3,8 @@
 //  LYFESTYL
 //
 //  Sign in with Apple gate (CLAUDE.md §4.3). Uses the native SignInWithAppleButton
-//  wired to Supabase via AuthManager — never a custom black Apple button.
+//  wired through AuthManager to gate a CloudKit-backed app, never a custom black
+//  Apple button.
 //
 
 import SwiftUI
@@ -17,7 +18,7 @@ struct SignInView: View {
             Spacer()
 
             VStack(spacing: 18) {
-                LyfestylLogo(size: 72, accentSecondLine: true)
+                LyfestylLogo(size: 72)
                 Text("Your lifestyle, made legible.")
                     .font(.title3)
                     .foregroundStyle(.appText)
@@ -27,7 +28,7 @@ struct SignInView: View {
             Spacer()
 
             VStack(alignment: .leading, spacing: 16) {
-                valueRow("text.bubble.fill", Solar.blue, "Dump a thought — typed or spoken")
+                valueRow("text.bubble.fill", Solar.blue, "Dump a thought, typed or spoken")
                 valueRow("cpu.fill", Solar.green, "On-device AI structures it instantly")
                 valueRow("chart.xyaxis.line", Solar.cyan, "Watch your trends build over time")
             }
@@ -40,7 +41,7 @@ struct SignInView: View {
                 } onCompletion: { result in
                     Task { await auth.handleAppleCompletion(result) }
                 }
-                .signInWithAppleButtonStyle(.white)
+                .signInWithAppleButtonStyle(.black)
                 .frame(height: 52)
                 .frame(maxWidth: 340)
 
@@ -52,7 +53,7 @@ struct SignInView: View {
                         .frame(maxWidth: 340)
                 }
 
-                Text("Private by design — your entries are analyzed on your device.")
+                Text("Private by design. Your entries are analyzed on your device.")
                     .font(.caption)
                     .foregroundStyle(.appTextMuted)
                     .multilineTextAlignment(.center)

@@ -6,10 +6,6 @@
 	objectVersion = 77;
 	objects = {
 
-/* Begin PBXBuildFile section */
-		AAAA000000000000000000B1 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = AAAA000000000000000000C1 /* Supabase */; };
-/* End PBXBuildFile section */
-
 /* Begin PBXFileReference section */
 		7784462C2FD6651100F5121F /* LYFESTYLE.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LYFESTYLE.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -27,7 +23,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AAAA000000000000000000B1 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -70,7 +65,6 @@
 			);
 			name = LYFESTYLE;
 			packageProductDependencies = (
-				AAAA000000000000000000C1 /* Supabase */,
 			);
 			productName = LYFESTYLE;
 			productReference = 7784462C2FD6651100F5121F /* LYFESTYLE.app */;
@@ -101,7 +95,6 @@
 			mainGroup = 778446232FD6651100F5121F;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				AAAA000000000000000000A1 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 7784462D2FD6651100F5121F /* Products */;
@@ -266,6 +259,7 @@
 				DEVELOPMENT_TEAM = 4Q768JXR89;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "LYFESTYL reads your Apple Health data (activity, heart, and sleep) to sharpen your STYL status and ask smarter check-in questions. It is read on-device and never leaves your phone except as your own private summary.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "LYFESTYL transcribes your voice entries on-device. The microphone is used only while you are recording an entry.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Your spoken entries are transcribed entirely on-device to turn speech into text. Nothing is sent to Apple or any server.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -301,6 +295,7 @@
 				DEVELOPMENT_TEAM = 4Q768JXR89;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "LYFESTYL reads your Apple Health data (activity, heart, and sleep) to sharpen your STYL status and ask smarter check-in questions. It is read on-device and never leaves your phone except as your own private summary.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "LYFESTYL transcribes your voice entries on-device. The microphone is used only while you are recording an entry.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Your spoken entries are transcribed entirely on-device to turn speech into text. Nothing is sent to Apple or any server.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -347,25 +342,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		AAAA000000000000000000A1 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/supabase/supabase-swift.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 2.46.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		AAAA000000000000000000C1 /* Supabase */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = AAAA000000000000000000A1 /* XCRemoteSwiftPackageReference "supabase-swift" */;
-			productName = Supabase;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 778446242FD6651100F5121F /* Project object */;
 }

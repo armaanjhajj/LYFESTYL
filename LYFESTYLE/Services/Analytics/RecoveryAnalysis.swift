@@ -68,9 +68,34 @@ nonisolated struct MetricBaseline: Identifiable, Hashable, Sendable {
     }
 
     /// Whether the latest reading is meaningfully away from baseline.
+    ///
+    /// This is the smallest-worthwhile-change test: has the value moved more than half this
+    /// person's own day-to-day spread. It is the right question for "is this change worth
+    /// noting at all", and it is deliberately sensitive.
     var isMeaningfulDeviation: Bool {
         guard isEstablished, let delta else { return false }
         return abs(delta) >= smallestWorthwhileChange
+    }
+
+    /// The threshold in robust standard deviations for calling a day genuinely unusual.
+    ///
+    /// The smallest worthwhile change alone is far too sensitive to headline a daily summary.
+    /// At half a standard deviation, roughly six days in ten clear it for any given metric by
+    /// ordinary variation, so a panel built on it would flag almost everything every day and
+    /// mean nothing. Requiring 1.5 robust standard deviations brings that to roughly one day
+    /// in seven per metric, which is the rate at which "this is unusual for you" is actually
+    /// informative.
+    static let notableZThreshold = 1.5
+
+    /// Whether the latest reading is far enough out to lead with.
+    ///
+    /// Requires BOTH tests: past the smallest worthwhile change AND past the z threshold. The
+    /// two catch different failure modes. A metric with a tiny spread can clear the z test on
+    /// a change too small to matter, and a metric with a wide spread can clear the
+    /// worthwhile-change test on a move that is entirely ordinary for it.
+    var isNotableDeviation: Bool {
+        guard isMeaningfulDeviation, let robustZ else { return false }
+        return abs(robustZ) >= Self.notableZThreshold
     }
 
     /// Which way it moved, only when the move is meaningful.
@@ -390,7 +415,9 @@ nonisolated enum RecoveryAnalysis {
         for metric in recoverySignalMetrics {
             guard let baseline = baselines[metric],
                   baseline.isEstablished,
-                  baseline.isMeaningfulDeviation,
+                  // The stricter test: leading a daily summary with every half-sigma wobble
+                  // would flag most metrics most days and tell the user nothing.
+                  baseline.isNotableDeviation,
                   let latestDate = baseline.latestDate, latestDate >= cutoff
             else { continue }
             signals.append(ReadinessRead.Signal(

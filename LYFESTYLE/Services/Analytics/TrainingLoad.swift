@@ -183,10 +183,19 @@ nonisolated enum TrainingLoad {
 
     /// Grade-adjusted average speed for a run, in meters per second.
     ///
-    /// Walks the distance and altitude series together, computes the gradient of each
-    /// segment, converts that segment's speed to its flat-equivalent via Minetti, and
-    /// returns the distance-weighted mean. Falls back to the plain average speed when
-    /// there is no altitude data (an indoor run has no grade to adjust for).
+    /// Walks the DISTANCE SERIES' OWN SAMPLES, computes each segment's gradient by
+    /// interpolating altitude at the same two instants, converts the segment to its
+    /// flat-equivalent distance via Minetti, and returns equivalent distance over elapsed
+    /// time. Falls back to the plain average speed when there is no altitude data, since an
+    /// indoor run has no grade to adjust for.
+    ///
+    /// Deliberately does NOT resample onto a fixed grid. Doing so was a real bug: a cumulative
+    /// series only changes at its original sample times, so on a finer grid one step carried a
+    /// whole sample interval's distance while contributing only that step's duration. The
+    /// implied speed came out multiplied by the ratio of the two spacings, which turned an
+    /// ordinary trail run into an intensity factor above three and a training load ten times
+    /// too large. Working on the source samples makes the time and distance accounting exact
+    /// by construction.
     static func gradeAdjustedSpeed(
         distanceSeries: MetricSeries?,
         altitudeSeries: MetricSeries?,
@@ -197,39 +206,52 @@ nonisolated enum TrainingLoad {
             return fallbackSpeedMps
         }
 
-        // Put both on the same time grid so segments line up.
-        let step = 5.0
-        let dist = distanceSeries.resampled(everySeconds: step)
-        let alt = altitudeSeries.resampled(everySeconds: step)
-        let n = min(dist.count, alt.count)
-        guard n >= 4 else { return fallbackSpeedMps }
-
         var weightedEquivalentDistance = 0.0
         var totalTime = 0.0
         var totalDistance = 0.0
 
-        for i in 1..<n {
-            let dd = dist.values[i] - dist.values[i - 1]
-            let dt = dist.offsets[i] - dist.offsets[i - 1]
-            // Skip pauses, backwards distance and implausible jumps (GPS glitches).
+        for i in 1..<distanceSeries.count {
+            let dd = distanceSeries.values[i] - distanceSeries.values[i - 1]
+            let dt = distanceSeries.offsets[i] - distanceSeries.offsets[i - 1]
+            // Skip pauses, backwards distance, and jumps faster than any human runs, which
+            // are GPS glitches rather than movement.
             guard dd > 0.2, dt > 0.5, dd / dt < 12 else { continue }
-            let dz = alt.values[i] - alt.values[i - 1]
-            let gradient = dz / dd
-            // A gradient beyond +/-45 percent over a five-second window is almost
-            // always barometric noise rather than terrain.
+
+            totalDistance += dd
+            totalTime += dt
+
+            // Altitude at the same two instants, interpolated so the two series need not
+            // share a sampling rate.
+            guard
+                let z0 = altitudeSeries.value(at: distanceSeries.offsets[i - 1]),
+                let z1 = altitudeSeries.value(at: distanceSeries.offsets[i])
+            else {
+                weightedEquivalentDistance += dd
+                continue
+            }
+            let gradient = (z1 - z0) / dd
+            // Beyond +/-45 percent Minetti's fit no longer applies, and over a short segment
+            // a reading that steep is almost always barometric noise rather than terrain.
             guard abs(gradient) < 0.45 else {
                 weightedEquivalentDistance += dd
-                totalDistance += dd
-                totalTime += dt
                 continue
             }
             weightedEquivalentDistance += dd * gradeAdjustmentFactor(gradient: gradient)
-            totalDistance += dd
-            totalTime += dt
         }
 
         guard totalTime > 30, totalDistance > 100 else { return fallbackSpeedMps }
-        return weightedEquivalentDistance / totalTime
+        let adjusted = weightedEquivalentDistance / totalTime
+
+        // A final sanity band. Averaged over a whole session the grade adjustment cannot
+        // plausibly move effective speed by more than about half in either direction, even on
+        // a mountain course. Outside that, the two series disagree about time or distance, and
+        // a wrong figure here propagates straight into training load, so fall back rather than
+        // trust it.
+        let raw = totalDistance / totalTime
+        guard raw > 0 else { return fallbackSpeedMps }
+        let ratio = adjusted / raw
+        guard ratio > 0.6, ratio < 1.8 else { return fallbackSpeedMps ?? raw }
+        return adjusted
     }
 
     // MARK: TRIMP

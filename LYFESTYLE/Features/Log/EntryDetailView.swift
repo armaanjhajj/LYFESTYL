@@ -38,11 +38,11 @@ struct EntryDetailView: View {
             if let entry {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
-                        if entry.status != .processing {
+                        if entry.status != .processing, entry.category == nil {
                             Button {
                                 Task { await store.process(entryID: entry.id) }
                             } label: {
-                                Label("Re-analyze", systemImage: "arrow.clockwise")
+                                Label("Re-file", systemImage: "arrow.clockwise")
                             }
                         }
                         Button(role: .destructive) {
@@ -65,7 +65,7 @@ struct EntryDetailView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This removes the entry and its breakdown from all your devices.")
+            Text("This removes the entry from all your devices.")
         }
     }
 
@@ -80,24 +80,128 @@ struct EntryDetailView: View {
                     failedBanner(entry)
                 }
 
-                rawCard(entry)
+                if let category = entry.category {
+                    categoryCard(category, subtag: entry.subtag)
+                }
 
-                if entry.status == .processed {
-                    if entry.insights.isEmpty {
-                        noDetails
-                    } else {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("BREAKDOWN")
-                                .blackCaps(.footnote, tracking: 1, color: .appTextMuted)
-                            ForEach(entry.sortedInsights) { insight in
-                                InsightCard(insight: insight)
-                            }
-                        }
-                    }
+                if let workout = entry.workout, !workout.exercises.isEmpty {
+                    workoutSection(workout)
+                }
+
+                if !entry.rawText.isEmpty {
+                    noteCard(entry)
+                }
+
+                if !entry.fields.isEmpty {
+                    organizedSection(entry)
                 }
             }
             .padding(20)
         }
+    }
+
+    private func categoryCard(_ category: InsightCategory, subtag: String?) -> some View {
+        HStack(spacing: 12) {
+            CategoryIcon(category: category, size: 44)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(category.label)
+                    .categoryLabel(color: .appTextEmphasis)
+                if let subtag, !subtag.isEmpty {
+                    Text(subtag.capitalized)
+                        .font(.subheadline)
+                        .foregroundStyle(.appTextMuted)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .cardSurface()
+    }
+
+    private func organizedSection(_ entry: JournalEntry) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("ORGANIZED")
+                .blackCaps(.footnote, tracking: 1, color: .appTextMuted)
+            VStack(spacing: 12) {
+                ForEach(entry.fields) { field in
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text(field.label.uppercased())
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .tracking(0.4)
+                            .foregroundStyle(.appTextMuted)
+                        Spacer(minLength: 8)
+                        Text(field.value)
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(.appTextEmphasis)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+            }
+            .cardSurface()
+        }
+    }
+
+    private func workoutSection(_ workout: WorkoutPayload) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("WORKOUT")
+                    .blackCaps(.footnote, tracking: 1, color: .appTextMuted)
+                Spacer()
+                Text(workout.countSummary)
+                    .font(.caption)
+                    .foregroundStyle(.appTextMuted)
+            }
+
+            VStack(spacing: 12) {
+                ForEach(workout.exercises) { logged in
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(logged.name)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.appTextEmphasis)
+                            if let ex = logged.exercise {
+                                Text(ex.muscleSummary)
+                                    .font(.caption)
+                                    .foregroundStyle(.appTextMuted)
+                            }
+                        }
+                        Spacer(minLength: 8)
+                        Text(logged.summary(unit: workout.unit))
+                            .font(.subheadline.weight(.medium))
+                            .monospacedDigit()
+                            .foregroundStyle(.appTextEmphasis)
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+
+                if !workout.systemsWorked.isEmpty {
+                    Divider().overlay(Color.appTextMuted.opacity(0.2))
+                    FlowLayout(spacing: 8) {
+                        ForEach(workout.systemsWorked) { system in
+                            systemChip(system)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .cardSurface()
+        }
+    }
+
+    private func systemChip(_ system: BodySystem) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: system.symbolName)
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(system.accent)
+            Text(system.label)
+                .font(.caption2)
+                .fontWeight(.bold)
+                .tracking(0.4)
+                .foregroundStyle(.appTextEmphasis)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .background(system.accent.opacity(0.16), in: Capsule())
     }
 
     private func metaHeader(_ entry: JournalEntry) -> some View {
@@ -112,24 +216,15 @@ struct EntryDetailView: View {
         }
     }
 
-    private func rawCard(_ entry: JournalEntry) -> some View {
+    private func noteCard(_ entry: JournalEntry) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("WHAT YOU WROTE")
                 .blackCaps(.footnote, tracking: 1, color: .appTextMuted)
             Text(entry.rawText)
-                .font(.body)
+                .font(.body.weight(.medium))
                 .foregroundStyle(.appTextEmphasis)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
-            if let summary = entry.overallSummary, !summary.isEmpty, summary != entry.rawText {
-                Divider().overlay(Color.appTextMuted.opacity(0.3))
-                Text(summary)
-                    .font(.callout)
-                    .italic()
-                    .foregroundStyle(.appText)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
         .cardSurface()
     }
@@ -163,13 +258,5 @@ struct EntryDetailView: View {
                 .tint(.appAccent)
         }
         .cardSurface(padding: 14)
-    }
-
-    private var noDetails: some View {
-        Text("No trackable details found in this entry.")
-            .font(.subheadline)
-            .foregroundStyle(.appTextMuted)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .cardSurface()
     }
 }

@@ -112,6 +112,31 @@ final class HealthDataStore {
         guard !hasLoadedCache else { return }
         hasLoadedCache = true
 
+        #if DEBUG
+        // Preview mode runs entirely on generated data and never touches the real cache, so
+        // there is no way for sample sessions to contaminate a genuine history.
+        if SampleData.isPreview {
+            let sample = HealthSampleData.generate()
+            workouts = sample.workouts
+            snapshots = sample.snapshots
+            profile.maxHeartRateOverride = 188
+            profile.restingHeartRateOverride = 48
+            profile.functionalThresholdPowerOverride = 245
+            profile.thresholdPaceSecPerKmOverride = 258
+            connections[.garmin] = .connected(
+                lastSync: Date(),
+                itemCount: workouts.filter { $0.origin.source == .garmin }.count
+            )
+            connections[.hevy] = .connected(
+                lastSync: Date(),
+                itemCount: workouts.filter { $0.origin.source == .hevy }.count
+            )
+            connections[.appleHealth] = .connected(lastSync: Date(), itemCount: 0)
+            scheduleAnalysis()
+            return
+        }
+        #endif
+
         async let cachedWorkouts = local.loadWorkouts()
         async let cachedSnapshots = local.loadSnapshots()
         async let cachedTemplates = local.loadTemplates()

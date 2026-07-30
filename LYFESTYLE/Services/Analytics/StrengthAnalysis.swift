@@ -369,54 +369,91 @@ nonisolated enum StrengthAnalysis {
             }
     }
 
+    /// Credited working sets per SPECIFIC MUSCLE over a window.
+    ///
+    /// Separate from `muscleVolume`, which rolls up to the seven body systems. A question like
+    /// "how do hamstrings compare to quadriceps" cannot be answered at system level, because
+    /// both live inside LEGS: doing so returns the same number on both sides and produces a
+    /// ratio of exactly 1.00 that looks like a finding and contains no information.
+    ///
+    /// Only exercises with precise muscle attribution contribute, so this is empty when every
+    /// source was region-only.
+    static func musclesSets(
+        workouts: [UnifiedWorkout],
+        windowDays: Int = 28,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> [MuscleGroup: Double] {
+        let today = calendar.startOfDay(for: now)
+        guard let windowStart = calendar.date(byAdding: .day, value: -(windowDays - 1), to: today) else {
+            return [:]
+        }
+        var totals: [MuscleGroup: Double] = [:]
+        for workout in workouts where workout.strength != nil && workout.day >= windowStart {
+            for (muscle, sets) in workout.strength?.setsPerMuscle() ?? [:] {
+                totals[muscle, default: 0] += sets
+            }
+        }
+        return totals
+    }
+
     /// Balance checks, using only ratios with a citable reference band.
-    static func balanceRatios(_ volumes: [MuscleVolume]) -> [BalanceRatio] {
-        func sets(_ system: BodySystem) -> Double {
+    ///
+    /// A ratio is only produced when BOTH sides can be counted independently. Where the data
+    /// cannot distinguish the two sides, the check is omitted rather than reported as balanced.
+    static func balanceRatios(
+        _ volumes: [MuscleVolume],
+        muscleSets: [MuscleGroup: Double] = [:]
+    ) -> [BalanceRatio] {
+        func system(_ system: BodySystem) -> Double {
             volumes.first { $0.system == system }?.totalSets ?? 0
         }
+        func muscles(_ group: [MuscleGroup]) -> Double {
+            group.reduce(0) { $0 + (muscleSets[$1] ?? 0) }
+        }
 
-        return [
+        var ratios: [BalanceRatio] = [
             BalanceRatio(
                 name: "Push and pull",
                 explanation: "Chest and shoulder pressing against back pulling. Rough parity is the usual programming convention.",
                 numeratorLabel: "Pulling",
                 denominatorLabel: "Pressing",
-                numeratorSets: sets(.back),
-                denominatorSets: sets(.chest) + sets(.shoulders),
+                numeratorSets: system(.back),
+                denominatorSets: system(.chest) + system(.shoulders),
                 // Convention rather than a measured ideal, so the band is generous.
                 referenceRange: 0.7...1.4,
                 source: "Common programming convention, not a measured ideal"
-            ),
-            BalanceRatio(
-                name: "Hamstrings and quadriceps",
-                explanation: "The hamstring to quadriceps ratio is the most studied balance measure in the knee-injury literature, where strength ratios near 0.6 and above are the usual reference.",
-                numeratorLabel: "Hamstrings",
-                denominatorLabel: "Quads",
-                numeratorSets: setsFor(volumes, muscles: [.hamstrings, .glutes]),
-                denominatorSets: setsFor(volumes, muscles: [.quads]),
-                referenceRange: 0.5...1.5,
-                source: "Hamstring to quadriceps strength ratio, knee-injury literature"
             ),
             BalanceRatio(
                 name: "Lower body and upper body",
                 explanation: "How the week splits between legs and everything above the waist.",
                 numeratorLabel: "Legs",
                 denominatorLabel: "Upper body",
-                numeratorSets: sets(.legs),
-                denominatorSets: sets(.chest) + sets(.back) + sets(.shoulders) + sets(.arms),
+                numeratorSets: system(.legs),
+                denominatorSets: system(.chest) + system(.back) + system(.shoulders) + system(.arms),
                 referenceRange: 0.4...1.2,
                 source: "Common programming convention"
             ),
         ]
-    }
 
-    /// Set totals for specific muscles, when the source attributed them precisely. Falls
-    /// back to the region when it did not.
-    private static func setsFor(_ volumes: [MuscleVolume], muscles: [MuscleGroup]) -> Double {
-        // The volume roll-up is by system, so a muscle-level question is answered at the
-        // system level. Documented rather than silently approximated.
-        let systems = Set(muscles.map(\.system))
-        return volumes.filter { systems.contains($0.system) }.reduce(0) { $0 + $1.totalSets }
+        // The posterior-to-anterior thigh comparison needs muscle-level attribution on both
+        // sides. Without it the numbers would be identical by construction.
+        let posterior = muscles([.hamstrings, .glutes])
+        let anterior = muscles([.quads])
+        if posterior > 0, anterior > 0 {
+            ratios.append(BalanceRatio(
+                name: "Hamstrings and quadriceps",
+                explanation: "The hamstring to quadriceps relationship is the most studied balance measure in the knee-injury literature, where strength ratios from about 0.6 upward are the usual reference. Note this counts SETS rather than strength, so it describes how the work is distributed, not a measured strength ratio.",
+                numeratorLabel: "Hamstrings and glutes",
+                denominatorLabel: "Quads",
+                numeratorSets: posterior,
+                denominatorSets: anterior,
+                referenceRange: 0.5...1.5,
+                source: "Hamstring to quadriceps literature, applied here to set counts"
+            ))
+        }
+
+        return ratios
     }
 
     // MARK: - Plateau and progress

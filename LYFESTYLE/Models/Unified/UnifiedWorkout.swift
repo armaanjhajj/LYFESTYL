@@ -77,6 +77,46 @@ nonisolated struct MetricSeries: Codable, Hashable, Sendable {
         slice(from: from, to: to).mean
     }
 
+    /// The median gap between consecutive samples, which is the series' true resolution.
+    ///
+    /// Needed because resampling ONTO A FINER GRID than the source is a trap: the values only
+    /// change at the original sample times, so a naive difference between adjacent grid points
+    /// credits a whole sample interval's change to one grid step. For a cumulative series such
+    /// as distance that silently multiplies the implied speed by the ratio of the two spacings.
+    var medianSampleSpacing: Double? {
+        guard offsets.count >= 3 else { return nil }
+        var gaps: [Double] = []
+        gaps.reserveCapacity(offsets.count - 1)
+        for i in 1..<offsets.count {
+            let gap = offsets[i] - offsets[i - 1]
+            if gap > 0 { gaps.append(gap) }
+        }
+        guard !gaps.isEmpty else { return nil }
+        gaps.sort()
+        return gaps[gaps.count / 2]
+    }
+
+    /// Linearly interpolate the value at an arbitrary offset.
+    ///
+    /// Returns nil outside the series' own span rather than extrapolating.
+    func value(at offset: Double) -> Double? {
+        guard let first = offsets.first, let last = offsets.last,
+              offset >= first, offset <= last, count >= 2 else {
+            return count == 1 ? values[0] : nil
+        }
+        // Binary search for the bracketing pair.
+        var low = 0
+        var high = offsets.count - 1
+        while high - low > 1 {
+            let mid = (low + high) / 2
+            if offsets[mid] <= offset { low = mid } else { high = mid }
+        }
+        let span = offsets[high] - offsets[low]
+        guard span > 0 else { return values[low] }
+        let t = (offset - offsets[low]) / span
+        return values[low] + (values[high] - values[low]) * t
+    }
+
     /// Resample onto a fixed grid by taking the mean of the samples inside each
     /// bucket, carrying the previous value forward across short gaps. Needed
     /// because rolling-window maths (normalized power, mean-maximal curves) assume
