@@ -21,7 +21,7 @@ import SwiftUI
 /// the direction that counts as an improvement. Having one enum means new metrics
 /// appear in the UI, the baselines and the correlation search without touching
 /// three different files.
-enum WellnessMetric: String, CaseIterable, Identifiable, Codable, Hashable, Sendable {
+nonisolated enum WellnessMetric: String, CaseIterable, Identifiable, Codable, Hashable, Sendable {
     // Sleep
     case sleepDuration
     case sleepEfficiency
@@ -55,10 +55,15 @@ enum WellnessMetric: String, CaseIterable, Identifiable, Codable, Hashable, Send
     // Mind
     case mindfulMinutes
 
-    // Garmin-only, only present with a direct Garmin connection
+    // Garmin-only, present only from imported Garmin data
     case bodyBattery
     case stressLevel
     case trainingReadiness
+    /// Garmin's overnight HRV, measured as RMSSD. Deliberately a SEPARATE metric from
+    /// `heartRateVariability` (Apple's SDNN): the two quantify different properties of the
+    /// beat-to-beat interval series and there is no valid conversion between them, so they
+    /// are never averaged together or compared against one another's baseline.
+    case hrvRmssd
 
     var id: String { rawValue }
 
@@ -90,6 +95,7 @@ enum WellnessMetric: String, CaseIterable, Identifiable, Codable, Hashable, Send
         case .bodyBattery:         "Body Battery"
         case .stressLevel:         "Stress"
         case .trainingReadiness:   "Training Readiness"
+        case .hrvRmssd:            "HRV (RMSSD)"
         }
     }
 
@@ -99,7 +105,7 @@ enum WellnessMetric: String, CaseIterable, Identifiable, Codable, Hashable, Send
         case .sleepEfficiency, .deepSleepShare, .remSleepShare, .oxygenSaturation, .bodyFat: "%"
         case .bedtimeConsistency:  "h"
         case .restingHeartRate, .walkingHeartRate: "bpm"
-        case .heartRateVariability:"ms"
+        case .heartRateVariability, .hrvRmssd: "ms"
         case .respiratoryRate:     "br/min"
         case .wristTemperature:    "C"
         case .heartRateRecovery:   "bpm"
@@ -110,8 +116,7 @@ enum WellnessMetric: String, CaseIterable, Identifiable, Codable, Hashable, Send
         case .flightsClimbed:      "flights"
         case .vo2Max:              "mL/kg/min"
         case .bodyMass, .leanBodyMass: "kg"
-        case .bodyBattery, .trainingReadiness: ""
-        case .stressLevel:         ""
+        case .bodyBattery, .trainingReadiness, .stressLevel: ""
         }
     }
 
@@ -122,7 +127,7 @@ enum WellnessMetric: String, CaseIterable, Identifiable, Codable, Hashable, Send
         case .remSleepShare:       "eye.fill"
         case .bedtimeConsistency:  "clock.fill"
         case .restingHeartRate:    "heart.fill"
-        case .heartRateVariability:"waveform.path.ecg"
+        case .heartRateVariability: "waveform.path.ecg"
         case .respiratoryRate:     "lungs.fill"
         case .oxygenSaturation:    "drop.degreesign.fill"
         case .wristTemperature:    "thermometer.medium"
@@ -142,6 +147,7 @@ enum WellnessMetric: String, CaseIterable, Identifiable, Codable, Hashable, Send
         case .bodyBattery:         "battery.100percent.bolt"
         case .stressLevel:         "bolt.heart.fill"
         case .trainingReadiness:   "gauge.with.dots.needle.67percent"
+        case .hrvRmssd:            "waveform.path.ecg.rectangle"
         }
     }
 
@@ -169,7 +175,7 @@ enum WellnessMetric: String, CaseIterable, Identifiable, Codable, Hashable, Send
     var direction: Direction {
         switch self {
         case .sleepDuration, .sleepEfficiency, .deepSleepShare, .remSleepShare,
-             .heartRateVariability, .heartRateRecovery, .steps, .activeEnergy,
+             .heartRateVariability, .hrvRmssd, .heartRateRecovery, .steps, .activeEnergy,
              .exerciseMinutes, .standHours, .flightsClimbed, .timeInDaylight,
              .vo2Max, .leanBodyMass, .mindfulMinutes, .bodyBattery, .trainingReadiness:
             .higherIsBetter
@@ -184,7 +190,7 @@ enum WellnessMetric: String, CaseIterable, Identifiable, Codable, Hashable, Send
 
     var fractionDigits: Int {
         switch self {
-        case .sleepDuration, .heartRateVariability, .respiratoryRate, .vo2Max,
+        case .sleepDuration, .heartRateVariability, .hrvRmssd, .respiratoryRate, .vo2Max,
              .bodyMass, .leanBodyMass, .bodyFat, .standHours:
             1
         case .wristTemperature, .bedtimeConsistency:
@@ -198,7 +204,7 @@ enum WellnessMetric: String, CaseIterable, Identifiable, Codable, Hashable, Send
     /// (Garmin does not mirror these into Apple Health).
     var isGarminExclusive: Bool {
         switch self {
-        case .bodyBattery, .stressLevel, .trainingReadiness: true
+        case .bodyBattery, .stressLevel, .trainingReadiness, .hrvRmssd: true
         default: false
         }
     }
@@ -232,6 +238,7 @@ enum WellnessMetric: String, CaseIterable, Identifiable, Codable, Hashable, Send
         case .bodyBattery:         snapshot.bodyBattery
         case .stressLevel:         snapshot.stressAverage
         case .trainingReadiness:   snapshot.trainingReadiness
+        case .hrvRmssd:            snapshot.garminHrvRmssdMs
         }
     }
 
@@ -271,7 +278,7 @@ enum WellnessMetric: String, CaseIterable, Identifiable, Codable, Hashable, Send
 
 /// One day of wellness. Values are canonical: hours for sleep, milliseconds for
 /// HRV, beats per minute, kilocalories, kilograms, minutes, degrees Celsius.
-struct DailySnapshot: Identifiable, Hashable, Codable, Sendable {
+nonisolated struct DailySnapshot: Identifiable, Hashable, Codable, Sendable {
 
     /// Start of the calendar day this describes.
     var date: Date
@@ -317,6 +324,10 @@ struct DailySnapshot: Identifiable, Hashable, Codable, Sendable {
     var bodyBattery: Double?
     var stressAverage: Double?
     var trainingReadiness: Double?
+    /// Garmin's overnight HRV as RMSSD in milliseconds. Kept apart from
+    /// `heartRateVariabilityMs` (Apple's SDNN) on purpose: RMSSD and SDNN are different
+    /// measures and mixing them would silently corrupt both baselines.
+    var garminHrvRmssdMs: Double?
 
     /// Which sources contributed anything to this day.
     var contributingSources: [DataSource]
@@ -348,6 +359,7 @@ struct DailySnapshot: Identifiable, Hashable, Codable, Sendable {
         bodyBattery: Double? = nil,
         stressAverage: Double? = nil,
         trainingReadiness: Double? = nil,
+        garminHrvRmssdMs: Double? = nil,
         contributingSources: [DataSource] = []
     ) {
         self.date = date
@@ -376,6 +388,7 @@ struct DailySnapshot: Identifiable, Hashable, Codable, Sendable {
         self.bodyBattery = bodyBattery
         self.stressAverage = stressAverage
         self.trainingReadiness = trainingReadiness
+        self.garminHrvRmssdMs = garminHrvRmssdMs
         self.contributingSources = contributingSources
     }
 

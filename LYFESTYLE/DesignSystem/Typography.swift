@@ -2,7 +2,7 @@
 //  Typography.swift
 //  LYFESTYL
 //
-//  SF Pro only (the default system font) — no Rounded, no Mono, no custom fonts
+//  SF Pro only (the default system font), no Rounded, no Mono, no custom fonts
 //  (CLAUDE.md §3.2). Titles / headers / section headers / category labels are
 //  ALL CAPS + black weight; body stays normal. These helpers keep that rule in
 //  one place so screens just say `.sectionHeader()` etc.
@@ -12,7 +12,7 @@ import SwiftUI
 
 extension View {
     /// ALL-CAPS, black-weight header with subtle positive tracking. The default
-    /// font stays SF Pro — we only set weight/case/tracking.
+    /// font stays SF Pro, we only set weight/case/tracking.
     func blackCaps(_ font: Font, tracking: CGFloat = 0.5, color: Color = .appTextEmphasis) -> some View {
         self.font(font)
             .fontWeight(.black)
@@ -34,6 +34,26 @@ extension View {
     /// A category/label chip's text treatment.
     func categoryLabel(color: Color = .appTextEmphasis) -> some View {
         blackCaps(.subheadline, tracking: 0.8, color: color)
+    }
+}
+
+/// The app's nav-bar header title (LYFE / STYL): ALL CAPS black-weight SF Pro in
+/// Solarized blue (0x268BD2), sized to sit inline on the toolbar row, left of the
+/// trailing actions, the way a native app aligns its header with the bar buttons.
+struct NavHeaderTitle: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        Text(text)
+            .font(.title2)
+            .fontWeight(.black)
+            .tracking(0.5)
+            .textCase(.uppercase)
+            .foregroundStyle(Solar.blue)
+            .lineLimit(1)
+            .fixedSize()
+            .accessibilityAddTraits(.isHeader)
     }
 }
 

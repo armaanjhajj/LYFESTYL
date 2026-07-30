@@ -3,7 +3,7 @@
 //  LYFESTYL
 //
 //  Reusable CONTENT components (cards, badges, chips, pills). Per CLAUDE.md §2.2
-//  glass goes on chrome only — these are content, so they use solid Solarized
+//  glass goes on chrome only, these are content, so they use solid Solarized
 //  surfaces (base02 cards, base03 insets), never `.glassEffect`.
 //
 
@@ -17,31 +17,6 @@ extension View {
         self
             .padding(padding)
             .background(Color.appSurface, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-    }
-}
-
-// MARK: - Rank badge
-
-struct RankBadge: View {
-    let rank: Rank
-    var compact: Bool = false
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Image(systemName: rank.symbolName)
-                .font(.caption2.weight(.bold))
-            if !compact {
-                Text(rank.label)
-                    .font(.caption2)
-                    .fontWeight(.black)
-                    .tracking(0.6)
-            }
-        }
-        .foregroundStyle(rank.color)
-        .padding(.horizontal, compact ? 7 : 9)
-        .padding(.vertical, 5)
-        .background(rank.color.opacity(0.18), in: Capsule())
-        .accessibilityLabel("Rank: \(rank.label)")
     }
 }
 
@@ -61,96 +36,6 @@ struct CategoryIcon: View {
                 in: RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
             )
             .accessibilityHidden(true)
-    }
-}
-
-// MARK: - Metric pill
-
-struct MetricPill: View {
-    let key: MetricKey
-    let text: String
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Image(systemName: key.symbolName)
-                .font(.caption2)
-                .foregroundStyle(.appTextMuted)
-            Text(text)
-                .font(.subheadline)
-                .fontWeight(.medium)
-                .monospacedDigit()
-                .foregroundStyle(.appTextEmphasis)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(Color.appBackground, in: Capsule())
-        .accessibilityLabel("\(key.label): \(text)")
-    }
-}
-
-// MARK: - Insight card (one category within an entry)
-
-struct InsightCard: View {
-    let insight: Insight
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                CategoryIcon(category: insight.category)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(insight.category.label)
-                        .categoryLabel(color: insight.category.accent)
-                    if !insight.title.isEmpty {
-                        Text(insight.title)
-                            .font(.headline)
-                            .foregroundStyle(.appTextEmphasis)
-                    }
-                }
-                Spacer(minLength: 8)
-                RankBadge(rank: insight.rank)
-            }
-
-            if !insight.detail.isEmpty {
-                Text(insight.detail)
-                    .font(.subheadline)
-                    .foregroundStyle(.appText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if !insight.displayMetrics.isEmpty {
-                FlowLayout(spacing: 8) {
-                    ForEach(insight.displayMetrics, id: \.key) { metric in
-                        MetricPill(key: metric.key, text: metric.text)
-                    }
-                }
-            }
-        }
-        .cardSurface()
-    }
-}
-
-// MARK: - Insight mini chip (category icon + rank, compact)
-
-struct InsightMiniChip: View {
-    let category: InsightCategory
-    let rank: Rank
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: category.symbolName)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(category.accent)
-            Text(rank.label)
-                .font(.caption2)
-                .fontWeight(.bold)
-                .tracking(0.4)
-                .foregroundStyle(rank.color)
-        }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 6)
-        .background(Color.appBackground, in: Capsule())
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(category.label): \(rank.label)")
     }
 }
 
@@ -181,7 +66,7 @@ struct EmptyStateView: View {
 }
 
 // MARK: - Flow layout (wraps pills onto multiple lines)
-// A small Layout — there is no native wrapping stack, so this is a legitimate
+// A small Layout, there is no native wrapping stack, so this is a legitimate
 // container, not a re-skinned system control.
 
 struct FlowLayout: Layout {

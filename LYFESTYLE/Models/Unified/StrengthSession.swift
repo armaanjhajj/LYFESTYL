@@ -26,7 +26,7 @@ import Foundation
 /// therefore which analyses apply. Mirrors Hevy's exercise types so nothing is
 /// lost in translation, with an `unknown` fallback because the source can add
 /// types at any time.
-enum StrengthMeasurement: String, Codable, Hashable, Sendable, CaseIterable {
+nonisolated enum StrengthMeasurement: String, Codable, Hashable, Sendable, CaseIterable {
     case weightReps             // load x reps, the classic barbell/dumbbell lift
     case repsOnly               // reps with no load recorded
     case bodyweightReps         // bodyweight movements (pull-ups, push-ups)
@@ -83,7 +83,7 @@ enum StrengthMeasurement: String, Codable, Hashable, Sendable, CaseIterable {
 /// Recording that honestly means shoulder volume still rolls up correctly to the
 /// SHOULDERS system without us inventing a front/side/rear split that the data
 /// never contained.
-enum MuscleTarget: Codable, Hashable, Sendable {
+nonisolated enum MuscleTarget: Codable, Hashable, Sendable {
     /// A specific mover, resolved either from the local library or from a source
     /// that names muscles precisely.
     case muscle(MuscleGroup)
@@ -159,7 +159,7 @@ enum MuscleTarget: Codable, Hashable, Sendable {
 
 // MARK: - Set
 
-enum StrengthSetType: String, Codable, Hashable, Sendable, CaseIterable {
+nonisolated enum StrengthSetType: String, Codable, Hashable, Sendable, CaseIterable {
     case normal
     case warmup
     case dropset
@@ -195,7 +195,7 @@ enum StrengthSetType: String, Codable, Hashable, Sendable, CaseIterable {
 
 /// One set. Every metric is optional: what is populated depends on the movement's
 /// measurement style, and an absent value is absent, never zero.
-struct StrengthSet: Identifiable, Hashable, Codable, Sendable {
+nonisolated struct StrengthSet: Identifiable, Hashable, Codable, Sendable {
     var id: UUID
     /// Position within the exercise, preserved from the source so order is stable.
     var index: Int
@@ -255,7 +255,7 @@ struct StrengthSet: Identifiable, Hashable, Codable, Sendable {
 /// One movement inside a session, with the sets performed. Muscle attribution
 /// prefers the local `ExerciseLibrary` (which knows front vs side vs rear delts)
 /// and falls back to whatever the source provided.
-struct StrengthExercise: Identifiable, Hashable, Codable, Sendable {
+nonisolated struct StrengthExercise: Identifiable, Hashable, Codable, Sendable {
     var id: UUID
     var index: Int
     /// The movement name as the source recorded it, kept verbatim so history reads
@@ -398,7 +398,7 @@ struct StrengthExercise: Identifiable, Hashable, Codable, Sendable {
 // MARK: - Session
 
 /// The whole resistance-training session hanging off a `UnifiedWorkout`.
-struct StrengthSession: Hashable, Codable, Sendable {
+nonisolated struct StrengthSession: Hashable, Codable, Sendable {
     var exercises: [StrengthExercise]
 
     init(exercises: [StrengthExercise] = []) {
@@ -498,7 +498,7 @@ struct StrengthSession: Hashable, Codable, Sendable {
 
 // MARK: - Unit formatting
 
-extension WeightUnit {
+nonisolated extension WeightUnit {
     /// Kilograms per pound, exact by definition (1 lb = 0.45359237 kg).
     static let kilogramsPerPound = 0.45359237
 

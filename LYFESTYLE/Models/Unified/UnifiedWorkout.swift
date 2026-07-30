@@ -33,7 +33,7 @@ import Foundation
 /// Series are downsampled at ingest (see `Downsampler`) so a three-hour ride costs
 /// kilobytes, not megabytes, while keeping enough resolution for drift and
 /// decoupling analysis.
-struct MetricSeries: Codable, Hashable, Sendable {
+nonisolated struct MetricSeries: Codable, Hashable, Sendable {
     var offsets: [Double]
     var values: [Double]
 
@@ -120,7 +120,7 @@ struct MetricSeries: Codable, Hashable, Sendable {
 
 /// Seconds spent in each of the five classic heart-rate zones. Boundaries come
 /// from the athlete profile, so this is always computed and never stored.
-struct ZoneDistribution: Hashable, Sendable {
+nonisolated struct ZoneDistribution: Hashable, Sendable {
     /// Index 0 is zone 1 (easiest) through index 4 (zone 5).
     var seconds: [Double]
 
@@ -149,7 +149,7 @@ struct ZoneDistribution: Hashable, Sendable {
 
 /// A compact stand-in for a full GPS track: enough to draw a shape and describe
 /// where a session happened, without storing thousands of coordinates.
-struct RouteSummary: Codable, Hashable, Sendable {
+nonisolated struct RouteSummary: Codable, Hashable, Sendable {
     /// Downsampled coordinate pairs, latitude then longitude.
     var latitudes: [Double]
     var longitudes: [Double]
@@ -176,7 +176,7 @@ struct RouteSummary: Codable, Hashable, Sendable {
 
 // MARK: - The unified workout
 
-struct UnifiedWorkout: Identifiable, Hashable, Codable, Sendable {
+nonisolated struct UnifiedWorkout: Identifiable, Hashable, Codable, Sendable {
 
     // Identity and provenance
     /// `"<source>:<foreignID>"`, stable across syncs so an update rewrites in place.
@@ -403,7 +403,7 @@ struct UnifiedWorkout: Identifiable, Hashable, Codable, Sendable {
 /// analyses need. A cap of 720 points is one sample every five seconds for an
 /// hour-long session, and every fifteen seconds for a three-hour ride, which is
 /// well inside the resolution that drift and decoupling maths require.
-enum Downsampler {
+nonisolated enum Downsampler {
     static let maxPoints = 720
 
     /// Bucket-average a series down to at most `maxPoints` samples. Averaging

@@ -14,7 +14,7 @@
 import Foundation
 import Observation
 
-enum Formatting {
+nonisolated enum Formatting {
 
     // MARK: - Duration
 

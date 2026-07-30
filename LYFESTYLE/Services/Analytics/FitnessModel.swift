@@ -24,7 +24,7 @@ import Foundation
 // MARK: - One day of the model
 
 /// The model's state on a single day.
-struct FitnessPoint: Identifiable, Hashable, Sendable {
+nonisolated struct FitnessPoint: Identifiable, Hashable, Sendable {
     var date: Date
     /// Total training load recorded on this day, in TSS-equivalent points.
     var load: Double
@@ -50,7 +50,7 @@ struct FitnessPoint: Identifiable, Hashable, Sendable {
 
 /// How to read a form value. These bands are the widely used practitioner
 /// conventions, and the app presents them as description rather than prescription.
-enum FormState: String, Hashable, Sendable, CaseIterable {
+nonisolated enum FormState: String, Hashable, Sendable, CaseIterable {
     /// Well above baseline freshness. Race-ready, but fitness is decaying.
     case fresh
     /// Slightly positive. Recovered and ready.
@@ -103,7 +103,7 @@ enum FormState: String, Hashable, Sendable, CaseIterable {
 // MARK: - Load ramp
 
 /// The acute-to-chronic load relationship, with the caveats it deserves.
-struct LoadRamp: Hashable, Sendable {
+nonisolated struct LoadRamp: Hashable, Sendable {
     /// Exponentially weighted acute load (7-day span).
     var acute: Double
     /// Exponentially weighted chronic load (28-day span).
@@ -157,7 +157,7 @@ struct LoadRamp: Hashable, Sendable {
 
 // MARK: - Weekly rollup
 
-struct TrainingWeek: Identifiable, Hashable, Sendable {
+nonisolated struct TrainingWeek: Identifiable, Hashable, Sendable {
     /// First day of the week (respecting the user's calendar).
     var weekStart: Date
     var totalLoad: Double
@@ -184,7 +184,7 @@ struct TrainingWeek: Identifiable, Hashable, Sendable {
 
 // MARK: - The model
 
-enum FitnessModel {
+nonisolated enum FitnessModel {
 
     /// Time constant for chronic load (fitness), in days. 42 days is Banister's
     /// original and the universal convention.

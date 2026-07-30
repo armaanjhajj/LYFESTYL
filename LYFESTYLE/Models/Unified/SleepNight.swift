@@ -20,7 +20,7 @@
 import SwiftUI
 
 /// A staged or unstaged night of sleep. All durations are seconds.
-struct SleepNight: Identifiable, Hashable, Codable, Sendable {
+nonisolated struct SleepNight: Identifiable, Hashable, Codable, Sendable {
 
     /// The calendar day the night is credited to: the morning the user woke up.
     /// This is the convention Apple Health uses, and it is what makes "last night"
@@ -140,7 +140,7 @@ struct SleepNight: Identifiable, Hashable, Codable, Sendable {
 
 /// The sleep stages HealthKit distinguishes. `core` is Apple's name for light
 /// sleep, kept as-is so the vocabulary matches what the user sees in Health.
-enum SleepStage: String, Codable, Hashable, CaseIterable, Identifiable, Sendable {
+nonisolated enum SleepStage: String, Codable, Hashable, CaseIterable, Identifiable, Sendable {
     case deep
     case rem
     case core
@@ -191,7 +191,7 @@ enum SleepStage: String, Codable, Hashable, CaseIterable, Identifiable, Sendable
 /// sleep intervals. Every duration is produced by unioning intervals, which is the
 /// only way to get an honest total when a coarse "asleep" block and its staged
 /// breakdown describe the same minutes.
-enum SleepAssembler {
+nonisolated enum SleepAssembler {
 
     /// One raw interval as a source reported it.
     struct Interval: Hashable, Sendable {

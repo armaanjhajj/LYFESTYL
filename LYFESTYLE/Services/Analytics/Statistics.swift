@@ -27,7 +27,7 @@
 
 import Foundation
 
-extension Comparable {
+nonisolated extension Comparable {
     /// Clamp into a closed range. Lives here because the numerical code leans on it
     /// constantly to keep values inside their mathematically valid domains.
     func clamped(to limits: ClosedRange<Self>) -> Self {
@@ -35,7 +35,7 @@ extension Comparable {
     }
 }
 
-enum Stats {
+nonisolated enum Stats {
 
     // MARK: - Central tendency and spread
 

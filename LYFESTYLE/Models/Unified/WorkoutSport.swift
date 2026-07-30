@@ -15,7 +15,7 @@
 import SwiftUI
 
 /// The broad kind of training, which decides which analyses apply.
-enum SportFamily: String, Codable, Hashable, CaseIterable, Identifiable, Sendable {
+nonisolated enum SportFamily: String, Codable, Hashable, CaseIterable, Identifiable, Sendable {
     /// Continuous aerobic work with distance and heart rate: runs, rides, swims,
     /// rows. Gets training load, aerobic decoupling, efficiency factor, pace and
     /// power curves.
@@ -56,7 +56,7 @@ enum SportFamily: String, Codable, Hashable, CaseIterable, Identifiable, Sendabl
 
 /// The specific sport. Deliberately finite: unmapped source activities fall back
 /// to `.other` rather than inventing a case, so nothing is silently mislabeled.
-enum WorkoutSport: String, Codable, Hashable, CaseIterable, Identifiable, Sendable {
+nonisolated enum WorkoutSport: String, Codable, Hashable, CaseIterable, Identifiable, Sendable {
     // Running family
     case run
     case trailRun

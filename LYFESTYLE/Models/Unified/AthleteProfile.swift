@@ -26,7 +26,7 @@ import Observation
 // MARK: - Provenance
 
 /// Where an anchor value came from. Drives honest labelling everywhere it is used.
-enum AnchorProvenance: String, Codable, Hashable, Sendable {
+nonisolated enum AnchorProvenance: String, Codable, Hashable, Sendable {
     /// The user entered it.
     case userEntered
     /// Measured from the user's own recorded data.
@@ -47,7 +47,7 @@ enum AnchorProvenance: String, Codable, Hashable, Sendable {
 }
 
 /// A resolved anchor: the number plus how confident we are in where it came from.
-struct Anchor: Hashable, Sendable {
+nonisolated struct Anchor: Hashable, Sendable {
     var value: Double
     var provenance: AnchorProvenance
 
@@ -59,7 +59,7 @@ struct Anchor: Hashable, Sendable {
 /// Used only by formulas that are published with sex-specific coefficients, notably
 /// the exponential TRIMP weighting. Defaults to `unspecified`, in which case the
 /// analysis falls back to a sex-neutral method rather than assuming.
-enum AthleteSex: String, Codable, Hashable, CaseIterable, Identifiable, Sendable {
+nonisolated enum AthleteSex: String, Codable, Hashable, CaseIterable, Identifiable, Sendable {
     case male, female, unspecified
 
     var id: String { rawValue }
@@ -81,7 +81,7 @@ enum AthleteSex: String, Codable, Hashable, CaseIterable, Identifiable, Sendable
 /// That keeps every calculation a pure function of plain values, which means the whole
 /// analysis can run off the main actor without any isolation gymnastics, and means a
 /// computation can never observe the profile changing halfway through.
-struct ProfileSnapshot: Hashable, Sendable {
+nonisolated struct ProfileSnapshot: Hashable, Sendable {
     var maxHeartRate: Anchor?
     var restingHeartRate: Anchor?
     var functionalThresholdPower: Anchor?
@@ -118,6 +118,12 @@ struct ProfileSnapshot: Hashable, Sendable {
     /// Zone 1 below 60 percent, Zone 2 60 to 70, Zone 3 70 to 80, Zone 4 80 to 90,
     /// Zone 5 above 90: the conventional five-zone reserve boundaries.
     static let zoneReserveBounds: [Double] = [0.60, 0.70, 0.80, 0.90]
+
+    /// Sanity windows. Values outside these are rejected as sensor noise rather than
+    /// quietly corrupting every load number that follows. They live here, on the
+    /// `Sendable` snapshot, so the off-main import path can reach them.
+    static let plausibleMaxHeartRate: ClosedRange<Double> = 120...230
+    static let plausibleRestingHeartRate: ClosedRange<Double> = 30...110
 
     var heartRateReserve: Double? {
         guard let maxHR = maxHeartRate?.value, let restHR = restingHeartRate?.value,
@@ -227,10 +233,10 @@ final class AthleteProfile {
     ) {
         // Max heart rate only ever ratchets upward from observation: a session where
         // the strap dropped out does not lower a true maximum.
-        if let value = observedMaxHeartRate, Self.plausibleMaxHeartRate.contains(value) {
+        if let value = observedMaxHeartRate, ProfileSnapshot.plausibleMaxHeartRate.contains(value) {
             self.observedMaxHeartRate = max(self.observedMaxHeartRate ?? 0, value)
         }
-        if let value = observedRestingHeartRate, Self.plausibleRestingHeartRate.contains(value) {
+        if let value = observedRestingHeartRate, ProfileSnapshot.plausibleRestingHeartRate.contains(value) {
             self.observedRestingHeartRate = value
         }
         if let value = observedFTP, value > 40, value < 600 {
@@ -244,10 +250,6 @@ final class AthleteProfile {
         }
     }
 
-    /// Sanity windows. Values outside these are rejected as sensor noise rather
-    /// than quietly corrupting every load number that follows.
-    static let plausibleMaxHeartRate: ClosedRange<Double> = 120...230
-    static let plausibleRestingHeartRate: ClosedRange<Double> = 30...110
 
     // MARK: - Resolved anchors
 
@@ -368,7 +370,7 @@ final class AthleteProfile {
 
 // MARK: - Small helpers
 
-extension UserDefaults {
+nonisolated extension UserDefaults {
     /// `double(forKey:)` returns 0 for a missing key, which is indistinguishable
     /// from a real zero. These keep "unset" honest.
     func optionalDouble(_ key: String) -> Double? {

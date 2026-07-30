@@ -28,7 +28,7 @@ import Foundation
 // MARK: - Result type
 
 /// One session's training load, with full provenance.
-struct TrainingLoadResult: Hashable, Sendable {
+nonisolated struct TrainingLoadResult: Hashable, Sendable {
 
     /// How the load was derived. Ordered by trustworthiness.
     enum Method: String, Codable, Hashable, Sendable, Comparable {
@@ -107,7 +107,7 @@ struct TrainingLoadResult: Hashable, Sendable {
 
 // MARK: - The calculator
 
-enum TrainingLoad {
+nonisolated enum TrainingLoad {
 
     // MARK: Normalized power
 

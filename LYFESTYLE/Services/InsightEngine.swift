@@ -5,7 +5,7 @@
 //  The on-device breakdown engine (CLAUDE.md §1). Wraps Apple's Foundation
 //  Models framework: checks availability, runs each entry through a focused
 //  `LanguageModelSession` with Guided Generation, and returns a typed
-//  `EntryBreakdown` — fully offline, no key, no cost, nothing leaves the device.
+//  `EntryBreakdown`, fully offline, no key, no cost, nothing leaves the device.
 //
 //  Determinism: we sample greedily so the same entry yields stable estimates,
 //  which is what makes LYFESTYL's trends comparable over time.
@@ -20,7 +20,7 @@ import Observation
 final class InsightEngine {
 
     /// User-facing availability of the on-device model.
-    enum Availability: Equatable {
+    nonisolated enum Availability: Equatable {
         case available
         case downloading
         case appleIntelligenceOff
@@ -99,7 +99,7 @@ final class InsightEngine {
     }
 
     /// Errors surfaced to the queue/UI. The raw entry is never lost regardless.
-    enum EngineError: LocalizedError {
+    nonisolated enum EngineError: LocalizedError {
         case unavailable(Availability)
         case generationFailed(String)
 
@@ -114,69 +114,142 @@ final class InsightEngine {
     /// Reduce first-run latency by warming the model. Safe to call repeatedly.
     func prewarm() {
         guard isAvailable else { return }
-        let session = LanguageModelSession(instructions: Self.instructions)
+        let session = LanguageModelSession(instructions: Self.classifyInstructions)
         session.prewarm()
     }
 
-    /// Break one entry's text into a typed `EntryBreakdown`. Each call uses a
-    /// fresh session so entries are classified independently (no cross-entry
-    /// context bleed, no context-window growth).
-    func breakdown(of text: String) async throws -> EntryBreakdown {
+    // MARK: - Classification (the only behind-the-scenes job)
+
+    /// Quietly file a free-written entry under ONE category and give it a clean
+    /// title. No ranking, no judgment, no estimated numbers. Each call uses a
+    /// fresh session so entries are classified independently. The caller maps a
+    /// `"NONE"` category to nil (a free thought with nothing trackable).
+    func classify(_ text: String) async throws -> EntryClassification {
         guard isAvailable else { throw EngineError.unavailable(availability) }
 
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            return EntryBreakdown(overallSummary: "", categories: [])
+            return EntryClassification(category: "NONE", title: "", subtag: nil)
         }
 
-        let session = LanguageModelSession(instructions: Self.instructions)
+        let session = LanguageModelSession(instructions: Self.classifyInstructions)
         let options = GenerationOptions(sampling: .greedy)
 
         do {
             let response = try await session.respond(
-                to: Self.prompt(for: trimmed),
-                generating: EntryBreakdown.self,
+                to: Self.classifyPrompt(for: trimmed),
+                generating: EntryClassification.self,
                 options: options
             )
             return response.content
         } catch let error as LanguageModelSession.GenerationError {
-            // Re-check availability — the model may have gone away mid-flight.
             refreshAvailability()
             throw EngineError.generationFailed(error.localizedDescription)
         }
     }
 
-    // MARK: - Prompt design (focused; the ~3B model excels at extraction)
+    static let classifyInstructions = """
+    You help a personal life-journaling app quietly organize what someone logs. \
+    The user writes a short, casual note about their day. Your only job is to file \
+    it under the ONE lifestyle category it is most about, and give it a short, \
+    clean title in their own voice.
 
-    static let instructions = """
-    You are the analysis engine for a health-journaling app. The user dumps a \
-    short, casual, often vague note about their day — what they ate, how they \
-    moved, how they slept, how they feel. Your job is to break that note into \
-    structured, trackable insights.
+    You do NOT judge, rate, score, or grade anything. You do NOT estimate numbers \
+    (no calories, no hours, no minutes). You do NOT give advice, diagnoses, or \
+    warnings. You only sort and title.
 
-    Rules:
-    - Produce one insight for EACH of the four categories the note actually \
-    touches: NUTRITION, ACTIVITY, SLEEP, HEALTH. Skip any category the note \
-    doesn't mention. A note can produce several insights or just one.
-    - Estimate tangible numbers when the category calls for them (calories and \
-    macros for food, minutes and distance for exercise, hours for sleep). The \
-    input is vague by design — make a reasonable, consistent estimate rather \
-    than refusing. Leave a number nil only when there is genuinely nothing to \
-    base it on.
-    - Rank each category honestly with the provided scale and rubric. Be a fair, \
-    consistent judge so the same kind of day always lands on the same rank.
-    - Never invent specifics the user didn't say. Never give medical advice, \
-    diagnoses, or warnings — just describe and estimate.
-    - Keep summaries and details short and plain. No emojis, no preamble.
+    Categories: NUTRITION (food and drink), ACTIVITY (exercise and movement), \
+    SLEEP (how they slept), HEALTH (physical health, symptoms, illness, meds), \
+    MIND (mood, stress, focus, reflection), SOCIAL (time with family, friends, or \
+    a partner). If the note is a stray thought, a quote, a to-do, or a joke with \
+    nothing trackable, the category is NONE. When a note touches more than one \
+    area, pick the single one it is most about.
+
+    The title is 3 to 6 plain words, neutral, no preamble, no 'The user', no \
+    rating words, no emojis, no em dashes. For SOCIAL, set the subtag to the \
+    specific relationship (e.g. 'partner', 'mother', 'coworker'); leave subtag \
+    empty for every other category.
     """
 
-    static func prompt(for text: String) -> String {
+    static func classifyPrompt(for text: String) -> String {
         """
-        Break down this journal entry:
+        File this journal entry:
 
         \"\"\"
         \(text)
         \"\"\"
         """
     }
+
+    // MARK: - Workout parsing (free-write ACTIVITY → structured movements)
+
+    /// Turn a free-written workout note into `LoggedExercise`s, resolved against
+    /// the on-device `ExerciseLibrary` so every parsed movement carries real
+    /// muscle tags. Movements the library can't match are still kept (as custom
+    /// entries) so the logged session faithfully mirrors what the user wrote.
+    /// Returns an empty array when the note isn't a workout, or when the model is
+    /// unavailable (the raw note is always preserved by the caller).
+    func parseWorkout(_ text: String) async throws -> [LoggedExercise] {
+        guard isAvailable else { throw EngineError.unavailable(availability) }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+
+        let session = LanguageModelSession(instructions: Self.parseInstructions)
+        let options = GenerationOptions(sampling: .greedy)
+        do {
+            let response = try await session.respond(
+                to: Self.parsePrompt(for: trimmed),
+                generating: ParsedWorkout.self,
+                options: options
+            )
+            return response.content.exercises.compactMap { Self.resolve($0) }
+        } catch let error as LanguageModelSession.GenerationError {
+            refreshAvailability()
+            throw EngineError.generationFailed(error.localizedDescription)
+        }
+    }
+
+    /// Map one parsed movement onto a `LoggedExercise`. Builds the requested
+    /// number of sets (default one) carrying any reps/weight the note specified.
+    private static func resolve(_ parsed: ParsedExercise) -> LoggedExercise? {
+        let name = parsed.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return nil }
+        let matched = ExerciseLibrary.shared.match(name: name)
+        let count = max(parsed.sets ?? 1, 1)
+        let sets = (0..<count).map { _ in
+            ExerciseSet(reps: parsed.reps, weight: parsed.weight)
+        }
+        return LoggedExercise(
+            exerciseID: matched?.id ?? "",
+            name: matched?.name ?? name,
+            sets: sets
+        )
+    }
+
+    static let parseInstructions = """
+    You extract the exercises from a short, casual note about a workout so a \
+    fitness app can log them. Return each distinct movement the person did, using \
+    its common gym name (e.g. 'Barbell Bench Press', 'Incline Dumbbell Press', \
+    'Lat Pulldown', 'Barbell Back Squat', 'Running').
+
+    If the note names a session type but not the movements (e.g. 'push day', 'leg \
+    day', 'chest and tris'), infer the specific exercises a lifter would typically \
+    do for it. Capture sets, reps, and weight ONLY when the note states them; never \
+    invent numbers. If the note is not about exercise at all, return no exercises. \
+    Do not judge, rate, or comment. No em dashes.
+    """
+
+    static func parsePrompt(for text: String) -> String {
+        """
+        Extract the workout from this note:
+
+        \"\"\"
+        \(text)
+        \"\"\"
+        """
+    }
+
+    // Workout suggestions now happen conversationally in the AI coach chat, which
+    // drives the model directly via `CoachReply` (see ChatConversation). The
+    // `WorkoutSuggestion` schema it produces is reused as the inline card there.
 }

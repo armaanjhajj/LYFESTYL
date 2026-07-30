@@ -14,7 +14,7 @@
 import SwiftUI
 
 /// Where a unified record came from.
-enum DataSource: String, Codable, Hashable, CaseIterable, Identifiable, Sendable {
+nonisolated enum DataSource: String, Codable, Hashable, CaseIterable, Identifiable, Sendable {
     /// Garmin Connect, reached through Apple Health (the Garmin Connect app
     /// mirrors watch data into HealthKit) or through a direct Garmin sync.
     case garmin
@@ -81,7 +81,7 @@ enum DataSource: String, Codable, Hashable, CaseIterable, Identifiable, Sendable
 /// A source that a specific piece of data is attributed to, plus the identifier it
 /// carried in that system. Keeping the foreign id lets an incremental sync update
 /// a record in place rather than duplicating it.
-struct SourceRef: Codable, Hashable, Sendable {
+nonisolated struct SourceRef: Codable, Hashable, Sendable {
     var source: DataSource
     /// The identifier in the origin system (Hevy workout UUID, HealthKit sample
     /// UUID, Garmin activity id). Unique within `source`.
