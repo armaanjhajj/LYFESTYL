@@ -5,6 +5,11 @@ Offline checks for the parts of LYFESTYL where a wrong answer would look plausib
 Everything here runs on a Mac against the app's real source files. Nothing in this
 directory ships in the app, and nothing in the app depends on it.
 
+```sh
+./Verification/setup.sh   # once: installs numpy/scipy and Garmin's SDK, fetches fixtures
+./Verification/run.sh     # every suite
+```
+
 ## Why these exist
 
 Three areas of this codebase fail silently rather than loudly:
@@ -22,14 +27,6 @@ Each check caught at least one real bug when it was written.
 
 ## Statistics
 
-```sh
-cd Verification/Statistics
-python3 -m venv venv && ./venv/bin/pip install numpy scipy
-swiftc -O -o harness ../../LYFESTYLE/Services/Analytics/Statistics.swift harness.swift
-./harness > swift_out.txt
-./venv/bin/python verify.py
-```
-
 74 checks against SciPy/NumPy, to within 1e-10 for the distribution functions: mean,
 variance, median, scaled median absolute deviation, percentiles, fractional ranks with
 ties, the normal CDF and its inverse, two-tailed Student t at fractional degrees of
@@ -44,15 +41,6 @@ autocorrelated by construction, a clearly trending series was reported as p = 0.
 Serial dependence is a property of the residuals, not of the predictor.
 
 ## FIT decoder
-
-```sh
-cd Verification/FIT
-npm install @garmin/fitsdk
-node synth.mjs                    # generate coverage files with Garmin's own encoder
-swiftc -O -o fitdump ../../LYFESTYLE/Services/Integrations/FIT/FITDecoder.swift dump/main.swift
-node fitdiff.mjs fitdata/*.fit    # differential against Garmin's reference decoder
-node checkfields.mjs              # field numbers and scales against the Global Profile
-```
 
 `fitdiff.mjs` decodes each file with both our decoder and Garmin's official JavaScript
 SDK, then compares message group counts, per-field value counts and exact per-field
@@ -74,11 +62,34 @@ One deliberate difference remains and is excluded from the comparison: profile-d
 component expansion of packed bit-fields, such as `hr.event_timestamp_12`, is not
 implemented. Nothing the app reads depends on it.
 
-## SF Symbols
+## Analysis pipeline
 
-```sh
-python3 Verification/check_symbols.py
-```
+63 assertions over the whole chain, run against a generated 180-day history that
+deliberately contains signals the analysis must recover: heart-rate variability
+responding to the PREVIOUS night's sleep, a bench press held flat against a
+climbing squat, and a resting-heart-rate step two thirds of the way in. If the
+correlation search does not find the sleep relationship at a one-day lag, its lag
+alignment is broken. If the trend test cannot tell the flat lift from the climbing
+one, it is not doing any work.
+
+It also checks invariants that catch scaling errors: no session load above 400
+points (one hour at threshold is 100 by definition), intensity factors inside
+0.2 to 2.0, and neither fitness nor fatigue exceeding the largest single day, since
+both are exponentially weighted averages of daily load and cannot. Plus spot checks
+against published values: Epley and Brzycki at 10 reps, Riegel's exponent, Minetti
+at zero gradient, the 42-day decay constant, and VDOT for a 20:00 5k.
+
+**What it caught:** grade-adjusted pace was resampling a cumulative distance series
+onto a grid finer than its own samples, which credited a full sample interval's
+distance to one grid step and multiplied the implied speed by the ratio of the two
+spacings. An ordinary trail run scored an intensity factor of 3.19 and a training
+load of 1712 instead of about 143, and the fatigue curve peaked at 295. Every
+individual formula was correct, which is exactly why an end-to-end check was needed.
+It also caught a hamstring-to-quadriceps balance ratio that resolved both sides
+through the body-system roll-up, and since both live in LEGS returned the same
+number twice and reported 1.00 as "balanced" regardless of the data.
+
+## SF Symbols
 
 Validates every SF Symbol name in the app against the system CoreGlyphs database
 (9,184 names) and reports the highest iOS version any of them requires.

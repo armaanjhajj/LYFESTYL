@@ -47,7 +47,15 @@ struct HealthHubView: View {
                 #if DEBUG
                 // Jump straight to a screen when launched with LYFE_ROUTE, which makes each
                 // surface reachable for a screenshot without driving the UI.
-                if let route = HealthRoute.debugLaunchRoute {
+                if ProcessInfo.processInfo.environment["LYFE_ROUTE"] == "connections" {
+                    showConnections = true
+                } else if ProcessInfo.processInfo.environment["LYFE_ROUTE"] == "workout",
+                          let first = store.workouts.first(where: { $0.heartRateSeries != nil }) {
+                    path.append(HealthRoute.workout(first.id))
+                } else if ProcessInfo.processInfo.environment["LYFE_ROUTE"] == "lift",
+                          let first = store.workouts.first(where: { $0.strength != nil }) {
+                    path.append(HealthRoute.workout(first.id))
+                } else if let route = HealthRoute.debugLaunchRoute {
                     path.append(route)
                 }
                 #endif

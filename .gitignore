@@ -40,3 +40,5 @@ Verification/**/swift_out.txt
 Verification/FIT/fitdump
 Verification/FIT/fit_profile.mjs
 Verification/Statistics/harness
+Verification/FIT/package.json
+Verification/FIT/package-lock.json

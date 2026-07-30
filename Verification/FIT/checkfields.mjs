@@ -8,10 +8,11 @@
 import P from './fit_profile.mjs';
 import { readFileSync } from 'fs';
 
-const swift = readFileSync(
-  '/Users/armaanjhajj/LYFESTYLE/LYFESTYLE/Services/Integrations/FIT/FITMessages.swift',
-  'utf8'
-);
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+const here = dirname(fileURLToPath(import.meta.url));
+const SWIFT_SRC = join(here, '..', '..', 'LYFESTYLE', 'Services', 'Integrations', 'FIT', 'FITMessages.swift');
+const swift = readFileSync(SWIFT_SRC, 'utf8');
 
 // Which Swift struct maps to which global message number.
 const STRUCT_TO_MESG = {
@@ -139,8 +140,7 @@ for (const [name, body] of Object.entries(bodies)) {
 }
 
 // Cross-check the global message numbers declared in FITMesg.
-const decoderMesg = readFileSync(
-  '/Users/armaanjhajj/LYFESTYLE/LYFESTYLE/Services/Integrations/FIT/FITMessages.swift', 'utf8');
+const decoderMesg = readFileSync(SWIFT_SRC, 'utf8');
 const mesgRe = /static let (\w+): UInt16 = (\d+)/g;
 let mm2;
 while ((mm2 = mesgRe.exec(decoderMesg))) {
