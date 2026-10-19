@@ -135,13 +135,12 @@ func food(_ name: String, _ kcal: Double, _ p: Double, _ c: Double, _ f: Double,
     let bottle = DraftItem(food: food("Fairlife Nutrition Plan", 150, 30, 0, 3), confidence: .high)
     let flavor = DraftItem(food: food("chocolate", 150, 0, 0, 0), confidence: .low)
     let frontLines = ["farlife", "nutrition plan", "2g SUGAR", "150 CALORIES", "CHOCOLATE", "NUTRITION SHAKE"]
-    let cleaned = LabelFacts.removeLabelWords(from: [(bottle, true), (flavor, false)], labelLines: frontLines)
-    check(cleaned.count == 1, "a flavor printed on the label is not a separate food")
-    check(cleaned.first?.item.food.name == "Fairlife Nutrition Plan Chocolate", "the flavor joins the product name, got \(cleaned.first?.item.food.name ?? "-")")
-    let unflagged = LabelFacts.removeLabelWords(from: [(bottle, false), (flavor, false)], labelLines: frontLines)
-    check(unflagged.count == 1 && unflagged[0].isPackaged, "with nothing marked packaged, the best label match is the product")
+    let cleaned = LabelFacts.removeLabelWords(from: [C(item: bottle, isPackaged: true), C(item: flavor, isPackaged: false)], labelLines: frontLines)
+    check(cleaned.map(\.item) == [bottle], "a flavor printed on the label is not a separate food")
+    let unflagged = LabelFacts.removeLabelWords(from: [C(item: bottle, isPackaged: false), C(item: flavor, isPackaged: false)], labelLines: frontLines)
+    check(unflagged.map(\.item) == [bottle], "with nothing marked packaged, the best label match is the product")
     let banana = DraftItem(food: food("Banana", 105, 1, 27, 0), confidence: .high)
-    check(LabelFacts.removeLabelWords(from: [(bottle, true), (banana, false)], labelLines: frontLines).count == 2, "a real second food stays")
+    check(LabelFacts.removeLabelWords(from: [C(item: bottle, isPackaged: true), C(item: banana, isPackaged: false)], labelLines: frontLines).count == 2, "a real second food stays")
 
     let footnoteOnly = LabelFacts(lines: ["Percent Daily Values are based on a 2,000 calorie diet."])
     check(footnoteOnly.isEmpty, "a 2,000 calorie diet footnote is not a calorie count")
@@ -149,13 +148,28 @@ func food(_ name: String, _ kcal: Double, _ p: Double, _ c: Double, _ f: Double,
 
     let guess = DraftItem(food: food("Protein shake", 250, 20, 10, 8), confidence: .medium)
     let plate = DraftItem(food: food("Rice", 205, 4, 45, 0), confidence: .high)
-    let applied = LabelFacts.apply(front, to: [(guess, true), (plate, false)])
+    typealias C = LabelFacts.Candidate
+    let applied = LabelFacts.apply(front, to: [C(item: guess, isPackaged: true), C(item: plate, isPackaged: false)], labelLines: [])
     check(applied[0].food.base.protein == 30 && applied[0].food.base.calories == 150, "label numbers replace the packaged item's guess")
     check(applied[0].food.base.carbs == 10, "numbers the label doesn't state keep the estimate")
     check(applied[0].confidence == .high, "a read label is high confidence")
     check(applied[1] == plate, "other foods are untouched")
-    check(LabelFacts.apply(front, to: [(guess, false), (plate, false)]) == [guess, plate], "with several foods and no packaged one, nothing is overridden")
-    check(LabelFacts.apply(front, to: [(guess, false)])[0].food.base.protein == 30, "a lone item takes the label")
+    check(LabelFacts.apply(front, to: [C(item: guess, isPackaged: false), C(item: plate, isPackaged: false)], labelLines: []) == [guess, plate], "with several foods and no packaged one, nothing is overridden")
+    check(LabelFacts.apply(front, to: [C(item: guess, isPackaged: false)], labelLines: [])[0].food.base.protein == 30, "a lone item takes the label")
+
+    // The user's desk: a Fairlife bottle in front of a Dunkin cup, both branded.
+    let shake = C(item: guess, isPackaged: true, product: "fairlife nutrition plan")
+    let dunkin = C(item: DraftItem(food: food("Iced coffee", 120, 0, 0, 0), confidence: .low), isPackaged: true, product: "Dunkin iced coffee")
+    let deskLines = ["DUNKIN", "farlife", "nutrition plan", "HIGH QUALITY", "PROTEIN", "150 CALORIES", "CHOCOLATE"]
+    check(LabelFacts.labelOwner(in: [dunkin, shake], labelLines: deskLines) == 1, "with two branded items, the label goes to the one its text matches")
+    let desk = LabelFacts.apply(front, to: [dunkin, shake], labelLines: deskLines)
+    check(desk[1].food.base.calories == 150 && desk[0].food.base.calories == 120, "only the matched product takes the label numbers")
+
+    print("Names")
+    check(ScannedFood.plainName("protein shake") == "Protein Shake", "lowercase names are title-cased")
+    check(ScannedFood.plainName("Chicken salad 2 cups") == "Chicken salad", "numbers are dropped from names")
+    check(ScannedFood.plainName("Grilled chicken breast with lemon herbs") == "Grilled chicken breast with", "names are capped at four words")
+    check(ScannedFood.plainName("300") == "Food", "a name of only numbers falls back to Food")
 }
 
 MainActor.assumeIsolated { run() }

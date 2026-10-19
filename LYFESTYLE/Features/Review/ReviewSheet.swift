@@ -54,7 +54,7 @@ struct ReviewSheet: View {
     private var root: some View {
         switch draft.phase {
         case .analyzing:
-            AnalyzingView(found: draft.found)
+            AnalyzingView(foods: draft.streaming)
         case .review:
             DraftReviewList(draft: draft, path: $path, onDelete: onDelete)
         case .search(let message):
@@ -130,30 +130,108 @@ struct ReviewSheet: View {
 // MARK: - Analyzing
 
 private struct AnalyzingView: View {
-    let found: [String]
+    let foods: [StreamedFood]
+
+    private var total: Nutrition {
+        foods.map {
+            Nutrition(calories: $0.calories ?? 0, protein: $0.protein ?? 0, carbs: $0.carbs ?? 0, fat: $0.fat ?? 0)
+        }.total
+    }
 
     var body: some View {
-        VStack(spacing: 20) {
-            ProcessingIndicator()
-            if !found.isEmpty {
-                FlowLayout(spacing: 8) {
-                    ForEach(found, id: \.self) { name in
-                        Text(name)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.appTextEmphasis)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(.appSurface, in: Capsule())
-                            .transition(.scale.combined(with: .opacity))
-                    }
+        // The same layout as the review list, so the result lands in place.
+        List {
+            Section {
+                NutritionSummary(nutrition: total)
+                    .shimmering(foods.isEmpty)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
+            }
+            Section {
+                ForEach(foods) { food in
+                    StreamingRow(food: food)
                 }
-                .animation(.snappy, value: found)
-                .padding(.horizontal, 24)
+                // One more placeholder: there may be more on the plate.
+                SkeletonRow(delay: foods.isEmpty ? 0 : 0.15)
+                if foods.isEmpty {
+                    SkeletonRow(delay: 0.1)
+                }
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .scrollContentBackground(.hidden)
         .background(.appBackground)
-        .accessibilityElement(children: .combine)
+        .scrollDisabled(true)
+        .sensoryFeedback(.impact(weight: .light), trigger: foods.count)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(foods.isEmpty ? "Reading the photo" : "Found \(foods.map(\.name).joined(separator: ", "))")
+    }
+}
+
+/// A food that has been named but may still be getting its numbers.
+private struct StreamingRow: View {
+    let food: StreamedFood
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(food.name)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.appTextEmphasis)
+                if let portion = food.portion {
+                    Text(portion)
+                        .font(.subheadline)
+                        .foregroundStyle(.appTextMuted)
+                        .transition(.blurReplace)
+                } else {
+                    SkeletonBar(width: 64, height: 10)
+                }
+            }
+            Spacer(minLength: 8)
+            VStack(alignment: .trailing, spacing: 5) {
+                if let calories = food.calories {
+                    Text("\(Formatting.calories(calories)) kcal")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.appTextEmphasis)
+                        .contentTransition(.numericText(value: calories))
+                } else {
+                    SkeletonBar(width: 70, height: 14)
+                }
+                if food.hasNumbers {
+                    Text(Formatting.macroLine(protein: food.protein ?? 0, carbs: food.carbs ?? 0, fat: food.fat ?? 0))
+                        .font(.caption)
+                        .foregroundStyle(.appTextMuted)
+                        .transition(.blurReplace)
+                } else {
+                    SkeletonBar(width: 90, height: 9)
+                }
+            }
+            .monospacedDigit()
+        }
+        .animation(.snappy, value: food)
+        .shimmering(!food.hasNumbers)
+        .arrives()
+    }
+}
+
+/// Where a food is about to land.
+private struct SkeletonRow: View {
+    var delay: Double = 0
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 8) {
+                SkeletonBar(width: 130, height: 14)
+                SkeletonBar(width: 70, height: 10)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 8) {
+                SkeletonBar(width: 70, height: 14)
+                SkeletonBar(width: 90, height: 9)
+            }
+        }
+        .padding(.vertical, 4)
+        .shimmering()
+        .arrives(delay: delay)
     }
 }
 

@@ -46,10 +46,9 @@ final class FoodAnalyzer {
         that is the clear subject of the photo. Ignore things in the background or cut off at \
         the edges. Words printed on a package (flavor, claims, ingredients) describe that \
         product and are never separate items.
-        Packaged products: when a brand or product name is visible, name the item exactly as \
-        printed, brand first, never a generic name like "protein shake". Use the nutrition \
-        printed on the package for one container or one serving. Text read from the photo is \
-        given to you; trust it over your own guess.
+        Packaged products: identify the exact brand and product from the label and use the \
+        nutrition printed on it for one container. Text read from the photo is given to you; \
+        trust it over your own guess. The name is still the plain everyday name of the food.
         Everything else: estimate the visible amount and use typical USDA values for it, \
         including visible oils, sauces and dressings.
         Confidence is high when the food and the amount are clear, low when they are not.
@@ -81,13 +80,13 @@ final class FoodAnalyzer {
         warmSession = session
     }
 
-    /// Itemize a photo. `onProgress` receives food names as they are generated so
-    /// the drawer can show what's been found before the numbers finish.
+    /// Itemize a photo. `onProgress` receives the foods as they are generated so
+    /// the drawer can show each one arrive before the whole answer is done.
     /// `varied` samples instead of decoding greedily, so a retry can disagree.
     func analyze(
         _ image: CGImage,
         varied: Bool = false,
-        onProgress: ([String]) -> Void = { _ in }
+        onProgress: ([StreamedFood]) -> Void = { _ in }
     ) async throws -> [DraftItem] {
         let started = ContinuousClock.now
         defer { log.info("Photo read in \(ContinuousClock.now - started, privacy: .public)") }
@@ -102,22 +101,22 @@ final class FoodAnalyzer {
             request
             Attachment(image, orientation: .up)
         }
-        var lastNames: [String] = []
+        var lastFoods: [StreamedFood] = []
         var final: GeneratedContent?
         for try await snapshot in stream {
             final = snapshot.rawContent
-            let names = (snapshot.content.items ?? []).compactMap { $0.name }.filter { !$0.isEmpty }
-            if names != lastNames {
-                lastNames = names
-                onProgress(names)
+            let foods = (snapshot.content.items ?? []).enumerated().compactMap { StreamedFood($1, index: $0) }
+            if foods != lastFoods {
+                lastFoods = foods
+                onProgress(foods)
             }
         }
         guard let final else { return [] }
-        let scanned = try FoodScan(final).items
-            .map { (item: $0.draftItem, isPackaged: $0.isPackaged) }
-            .filter { !$0.item.food.name.isEmpty }
+        let scanned = try FoodScan(final).items.map {
+            LabelFacts.Candidate(item: $0.draftItem, isPackaged: $0.isPackaged, product: $0.product)
+        }
         let products = LabelFacts.removeLabelWords(from: scanned, labelLines: label.lines)
-        return LabelFacts.apply(label.facts, to: products)
+        return LabelFacts.apply(label.facts, to: products, labelLines: label.lines)
     }
 
     /// Estimate what the person described, split into items if they listed several.

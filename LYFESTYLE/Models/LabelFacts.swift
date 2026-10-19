@@ -77,15 +77,22 @@ nonisolated struct LabelFacts: Equatable, Sendable {
         }
     }
 
-    /// Put the label's numbers on the food it belongs to. Text can't be pinned
-    /// to one item in a photo of several, so this only applies when it's clear
-    /// which food the label is: the one packaged item, or the only item.
-    static func apply(_ facts: LabelFacts, to items: [(item: DraftItem, isPackaged: Bool)]) -> [DraftItem] {
-        var result = items.map(\.item)
-        guard !facts.isEmpty else { return result }
-        let packaged = items.indices.filter { items[$0].isPackaged }
-        let target: Int? = packaged.count == 1 ? packaged[0] : (items.count == 1 ? 0 : nil)
-        guard let target else { return result }
+    /// One food from a scan, with the identity the person never sees.
+    struct Candidate: Equatable, Sendable {
+        var item: DraftItem
+        var isPackaged: Bool
+        /// Brand and product line, empty for unpackaged food.
+        var product: String = ""
+
+        var looksPackaged: Bool { isPackaged || !product.isEmpty }
+    }
+
+    /// Put the label's numbers on the food the label belongs to: the one
+    /// packaged item, the only item, or, with several, the product the label's
+    /// text matches best ("fairlife nutrition plan" over a Dunkin cup).
+    static func apply(_ facts: LabelFacts, to candidates: [Candidate], labelLines: [String]) -> [DraftItem] {
+        var result = candidates.map(\.item)
+        guard !facts.isEmpty, let target = labelOwner(in: candidates, labelLines: labelLines) else { return result }
 
         var food = result[target].food
         food.servings = 1
@@ -101,42 +108,36 @@ nonisolated struct LabelFacts: Equatable, Sendable {
     }
 
     /// The model sometimes lists a word printed on a package ("chocolate",
-    /// "vanilla") as a separate food. Any non-packaged item whose whole name
-    /// appears in the label text is dropped, and its word joins the product's
-    /// name instead. If the model didn't mark anything packaged, the item whose
-    /// name the label text matches best (two or more words) is the product.
-    static func removeLabelWords(
-        from items: [(item: DraftItem, isPackaged: Bool)],
-        labelLines: [String]
-    ) -> [(item: DraftItem, isPackaged: Bool)] {
+    /// "vanilla") as a separate food. When a packaged product is in the photo,
+    /// any other item whose whole name is printed in the label text is dropped.
+    static func removeLabelWords(from candidates: [Candidate], labelLines: [String]) -> [Candidate] {
         let text = labelLines.joined(separator: " ").lowercased()
-        guard !text.isEmpty, items.count > 1 else { return items }
-        var items = items
+        guard !text.isEmpty, candidates.count > 1,
+              let owner = labelOwner(in: candidates, labelLines: labelLines) else { return candidates }
+        return candidates.enumerated().compactMap { index, candidate in
+            let name = candidate.item.food.name.trimmingCharacters(in: .whitespaces).lowercased()
+            let isLabelWord = index != owner && !candidate.looksPackaged && name.count > 2 && text.contains(name)
+            return isLabelWord ? nil : candidate
+        }
+    }
 
-        if !items.contains(where: \.isPackaged) {
-            func matched(_ name: String) -> Int {
-                name.lowercased().split(separator: " ").filter { $0.count > 2 && text.contains($0) }.count
-            }
-            let best = items.indices.max { matched(items[$0].item.food.name) < matched(items[$1].item.food.name) }
-            guard let best, matched(items[best].item.food.name) >= 2 else { return items }
-            items[best].isPackaged = true
-        }
+    /// Which candidate a label's text belongs to, if that's clear.
+    static func labelOwner(in candidates: [Candidate], labelLines: [String]) -> Int? {
+        guard !candidates.isEmpty else { return nil }
+        let packaged = candidates.indices.filter { candidates[$0].looksPackaged }
+        if packaged.count == 1 { return packaged[0] }
+        if candidates.count == 1 { return 0 }
 
-        var folded: [String] = []
-        items.removeAll { entry in
-            let name = entry.item.food.name.trimmingCharacters(in: .whitespaces).lowercased()
-            guard !entry.isPackaged, name.count > 2, text.contains(name) else { return false }
-            folded.append(name)
-            return true
+        let text = labelLines.joined(separator: " ").lowercased()
+        func score(_ i: Int) -> Int {
+            let identity = candidates[i].product.isEmpty ? candidates[i].item.food.name : candidates[i].product
+            return identity.lowercased().split(separator: " ").filter { $0.count > 2 && text.contains($0) }.count
         }
-        let packaged = items.indices.filter { items[$0].isPackaged }
-        if packaged.count == 1 {
-            let i = packaged[0]
-            for word in folded where !items[i].item.food.name.lowercased().contains(word) {
-                items[i].item.food.name += " " + word.capitalized
-            }
-        }
-        return items
+        let pool = packaged.isEmpty ? Array(candidates.indices) : packaged
+        let scores = pool.map { ($0, score($0)) }.sorted { $0.1 > $1.1 }
+        guard let best = scores.first, best.1 >= 2 else { return nil }
+        if scores.count > 1, scores[1].1 == best.1 { return nil }
+        return best.0
     }
 
     // MARK: - Matching

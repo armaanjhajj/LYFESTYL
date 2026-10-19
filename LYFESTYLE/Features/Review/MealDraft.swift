@@ -37,8 +37,8 @@ final class MealDraft: Identifiable {
     var items: [DraftItem]
     /// Whole-photo candidates when the model couldn't commit to anything.
     private(set) var suggestions: [DraftItem] = []
-    /// Food names as they stream out of the model.
-    private(set) var found: [String] = []
+    /// Foods as they stream out of the model.
+    private(set) var streaming: [StreamedFood] = []
     /// When the meal was eaten: the snap, or the original log time. Never asked for.
     let loggedAt: Date
 
@@ -90,14 +90,14 @@ final class MealDraft: Identifiable {
             return
         }
         phase = .analyzing
-        found = []
+        streaming = []
         // The first pass decodes greedily; a retry samples so it can disagree.
         let varied = attempts > 0
         attempts += 1
         task = Task { [weak self] in
             do {
-                let result = try await analyzer.analyze(image, varied: varied) { names in
-                    self?.found = names
+                let result = try await analyzer.analyze(image, varied: varied) { foods in
+                    self?.streaming = foods
                 }
                 guard !Task.isCancelled else { return }
                 self?.apply(result)
