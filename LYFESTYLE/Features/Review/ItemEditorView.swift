@@ -115,9 +115,7 @@ struct FoodFields: View {
         } footer: {
             if food.servings != 1 {
                 let n = food.nutrition
-                Text("\(Formatting.servings(food.servings)) total: \(Formatting.calories(n.calories)) kcal, \(Formatting.macroLine(protein: n.protein, carbs: n.carbs, fat: n.fat))")
-            } else {
-                Text("Estimates. Adjust anything that looks off.")
+                Text("Total \(Formatting.calories(n.calories)) kcal · \(Formatting.macroLine(protein: n.protein, carbs: n.carbs, fat: n.fat))")
             }
         }
     }

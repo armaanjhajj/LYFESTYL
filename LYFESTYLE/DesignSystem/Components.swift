@@ -57,10 +57,12 @@ struct EmptyStateView: View {
             Text(title)
                 .blackCaps(.title3, tracking: 0.8, color: .appTextEmphasis)
                 .multilineTextAlignment(.center)
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(.appTextMuted)
-                .multilineTextAlignment(.center)
+            if !message.isEmpty {
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(.appTextMuted)
+                    .multilineTextAlignment(.center)
+            }
         }
         .frame(maxWidth: 320)
         .padding(.horizontal, 24)

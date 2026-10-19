@@ -44,7 +44,7 @@ struct DashboardView: View {
 
                 Section {
                     if todayMeals.isEmpty {
-                        Text("Nothing logged yet today. Snap a meal to start.")
+                        Text("Nothing yet today.")
                             .foregroundStyle(.appTextMuted)
                     } else {
                         MealRows(meals: todayMeals, editing: $editing)
@@ -57,8 +57,6 @@ struct DashboardView: View {
                     HabitRows(result: HabitEngine.evaluate(days: days, goals: goals))
                 } header: {
                     Text("HABITS").sectionHeader()
-                } footer: {
-                    Text("Based on the last \(HabitEngine.windowDays) finished days you logged.")
                 }
 
                 Section {
@@ -252,13 +250,12 @@ private struct MealRow: View {
     var body: some View {
         let n = meal.nutrition
         HStack(spacing: 12) {
-            IconChip(symbol: meal.meal.symbol, tint: .appAccent, size: 34)
             VStack(alignment: .leading, spacing: 2) {
                 Text(meal.title)
                     .font(.body.weight(.semibold))
                     .foregroundStyle(.appTextEmphasis)
                     .lineLimit(1)
-                Text("\(meal.meal.rawValue) · \(Formatting.timeOfDay(meal.loggedAt))")
+                Text(Formatting.timeOfDay(meal.loggedAt))
                     .font(.subheadline)
                     .foregroundStyle(.appTextMuted)
             }
@@ -318,7 +315,7 @@ private struct HabitRows: View {
                     Text("Keep logging")
                         .font(.body.weight(.semibold))
                         .foregroundStyle(.appTextEmphasis)
-                    Text("Habits show up after \(HabitEngine.minimumDays) logged days. You have \(logged) in the last week.")
+                    Text("\(logged) of \(HabitEngine.minimumDays) days so far.")
                         .font(.subheadline)
                         .foregroundStyle(.appTextMuted)
                 }

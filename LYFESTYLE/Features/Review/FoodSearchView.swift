@@ -88,9 +88,7 @@ struct FoodSearchView: View {
                     EmptyStateView(
                         symbol: "magnifyingglass",
                         title: "Search for a food",
-                        message: analyzer.status.canEstimateText
-                            ? "Type a food, or describe a whole meal like \"two eggs and toast\"."
-                            : "Type a food to find it, or enter it by hand."
+                        message: analyzer.status.canEstimateText ? "Or describe it, like \"two eggs and toast\"." : ""
                     )
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 24)
@@ -117,12 +115,7 @@ struct FoodSearchView: View {
                 Button { estimate(trimmed) } label: {
                     HStack {
                         Label {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Estimate \u{201C}\(trimmed)\u{201D}").foregroundStyle(.appTextEmphasis)
-                                Text("Calories and macros, worked out on this iPhone")
-                                    .font(.caption)
-                                    .foregroundStyle(.appTextMuted)
-                            }
+                            Text("Estimate \u{201C}\(trimmed)\u{201D}").foregroundStyle(.appTextEmphasis)
                         } icon: {
                             Image(systemName: "wand.and.sparkles").foregroundStyle(.appAccent)
                         }
@@ -174,14 +167,9 @@ struct FoodSearchView: View {
             estimate(portion.map { "\(name), \($0)" } ?? name, label: name)
         } label: {
             HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(name)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.appTextEmphasis)
-                    Text("Tap to estimate")
-                        .font(.subheadline)
-                        .foregroundStyle(.appTextMuted)
-                }
+                Text(name)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.appTextEmphasis)
                 Spacer()
                 if estimating == name { ProgressView() }
             }

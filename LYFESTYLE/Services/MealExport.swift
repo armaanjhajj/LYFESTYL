@@ -21,7 +21,7 @@ nonisolated struct MealExport: Transferable {
     }
 
     var csv: String {
-        var lines = ["date,time,meal,food,portion,servings,calories,protein_g,carbs_g,fat_g"]
+        var lines = ["date,time,food,portion,servings,calories,protein_g,carbs_g,fat_g"]
         let day = Date.ISO8601FormatStyle().year().month().day()
         let time = Date.ISO8601FormatStyle().time(includingFractionalSeconds: false)
         for row in rows.sorted(by: { $0.date < $1.date }) {
@@ -30,7 +30,6 @@ nonisolated struct MealExport: Transferable {
                 lines.append([
                     row.date.formatted(day),
                     row.date.formatted(time),
-                    MealKind(for: row.date).rawValue,
                     Self.escape(item.name),
                     Self.escape(item.portion),
                     item.servings.formatted(.number.precision(.fractionLength(0...2)).grouping(.never)),

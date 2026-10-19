@@ -4,8 +4,8 @@
 //
 //  The drawer that rises after a snap. X on the left dismisses (and drops the
 //  photo), + on the right logs. Every food can be opened, edited, swapped
-//  through search, or removed. The same sheet edits meals from the history,
-//  with a checkmark in place of the +.
+//  through search, or removed. The time is recorded silently. The same sheet
+//  edits meals from the history, with a checkmark in place of the +.
 //
 
 import SwiftUI
@@ -188,17 +188,6 @@ private struct DraftReviewList: View {
                 } label: {
                     Label("Add Food", systemImage: "plus")
                 }
-            } header: {
-                Text("FOODS").sectionHeader()
-            } footer: {
-                if draft.items.contains(where: \.needsCheck) {
-                    Text("Foods marked Check were hard to make out. Tap one to fix it or pick another match.")
-                }
-            }
-
-            Section {
-                DatePicker("Time", selection: $draft.loggedAt, in: ...Date.now)
-                LabeledContent("Meal", value: MealKind(for: draft.loggedAt).rawValue)
             }
 
             if draft.editing != nil {
@@ -209,7 +198,6 @@ private struct DraftReviewList: View {
         }
         .scrollContentBackground(.hidden)
         .background(.appBackground)
-        .capsNavigationTitle(draft.editing == nil ? "New Meal" : "Edit Meal")
         .confirmationDialog("Delete this meal?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete Meal", role: .destructive, action: onDelete)
         }

@@ -39,7 +39,8 @@ final class MealDraft: Identifiable {
     private(set) var suggestions: [DraftItem] = []
     /// Food names as they stream out of the model.
     private(set) var found: [String] = []
-    var loggedAt: Date
+    /// When the meal was eaten: the snap, or the original log time. Never asked for.
+    let loggedAt: Date
 
     @ObservationIgnored private var attempts = 0
     @ObservationIgnored private var task: Task<Void, Never>?

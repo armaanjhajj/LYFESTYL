@@ -70,9 +70,11 @@ struct SettingsView: View {
                     Text(accountTitle)
                         .font(.body.weight(.semibold))
                         .foregroundStyle(.appTextEmphasis)
-                    Text(accountDetail)
-                        .font(.subheadline)
-                        .foregroundStyle(.appTextMuted)
+                    if !accountDetail.isEmpty {
+                        Text(accountDetail)
+                            .font(.subheadline)
+                            .foregroundStyle(.appTextMuted)
+                    }
                 }
             }
             .accessibilityElement(children: .combine)
@@ -94,12 +96,9 @@ struct SettingsView: View {
 
     private var accountDetail: String {
         switch iCloud {
-        case .available:
-            "Your meals and goals are private to your iCloud account and stay in step across your devices."
-        case .noAccount, .restricted, .temporarilyUnavailable:
-            "Meals are saved on this iPhone and will sync once iCloud is available. Sign in from the Settings app."
-        default:
-            "Your meals are saved on this iPhone."
+        case .available: "Private to your iCloud account."
+        case nil:        ""
+        default:         "Saved on this iPhone until you sign in."
         }
     }
 
@@ -126,10 +125,6 @@ struct SettingsView: View {
             }
         } header: {
             Text("DAILY GOALS").sectionHeader()
-        } footer: {
-            let g = goals.wrappedValue
-            let fromMacros = g.protein * 4 + g.carbs * 4 + g.fat * 9
-            Text("Your macro goals add up to about \(Formatting.calories(fromMacros)) kcal.")
         }
     }
 
@@ -155,9 +150,7 @@ struct SettingsView: View {
             Text("APPLE HEALTH").sectionHeader()
         } footer: {
             if healthDenied {
-                Text("Health access is off. Turn it on in Settings, Health, Data Access & Devices, LYFESTYLE.")
-            } else {
-                Text("Adds each meal's calories, protein, carbs and fat to Apple Health. Edits and deletes carry over.")
+                Text("Allow access in the Health app under Data Access & Devices.")
             }
         }
     }
@@ -178,8 +171,6 @@ struct SettingsView: View {
             .accessibilityElement(children: .combine)
         } header: {
             Text("ON-DEVICE AI").sectionHeader()
-        } footer: {
-            Text("Estimates trade some accuracy for speed. Portions are judged by eye, so check anything that matters to you.")
         }
     }
 
@@ -194,9 +185,9 @@ struct SettingsView: View {
     private var aiDetail: String {
         switch analyzer.status {
         case .ready:
-            "Photos are read by Apple's on-device model. They never leave this iPhone and are never saved."
+            "Photos stay on this iPhone and are never saved."
         case .textOnly:
-            "This iPhone's model can't read photos, but it can estimate foods you type."
+            "Photos can't be read on this iPhone."
         case .unavailable(let message):
             message
         }
@@ -220,8 +211,6 @@ struct SettingsView: View {
             .disabled(meals.isEmpty)
         } header: {
             Text("YOUR DATA").sectionHeader()
-        } footer: {
-            Text("\(meals.count == 1 ? "1 meal" : "\(meals.count) meals") logged. No photos are stored, only foods and numbers.")
         }
     }
 

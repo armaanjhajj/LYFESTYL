@@ -115,7 +115,7 @@ struct GoalCalculatorForm: View {
         } header: {
             Text("SUGGESTED DAILY GOALS").sectionHeader()
         } footer: {
-            Text("A starting point, not medical advice. Maintenance is about \(Formatting.calories(profile.maintenanceCalories)) kcal a day for you. Adjust anytime in Settings.")
+            Text("A starting point, not medical advice.")
         }
     }
 

@@ -36,29 +36,4 @@ final class MealEntry {
 
     var nutrition: Nutrition { items.nutrition }
     var title: String { items.title }
-    var meal: MealKind { MealKind(for: loggedAt) }
-}
-
-/// Breakfast / lunch / dinner / snack, read off the time. Never stored, so moving
-/// a meal's time relabels it for free.
-nonisolated enum MealKind: String, Sendable {
-    case breakfast = "Breakfast", lunch = "Lunch", dinner = "Dinner", snack = "Snack"
-
-    init(for date: Date, calendar: Calendar = .current) {
-        switch calendar.component(.hour, from: date) {
-        case 4..<11:  self = .breakfast
-        case 11..<15: self = .lunch
-        case 17..<22: self = .dinner
-        default:      self = .snack
-        }
-    }
-
-    var symbol: String {
-        switch self {
-        case .breakfast: "sunrise.fill"
-        case .lunch:     "sun.max.fill"
-        case .dinner:    "moon.stars.fill"
-        case .snack:     "carrot.fill"
-        }
-    }
 }
