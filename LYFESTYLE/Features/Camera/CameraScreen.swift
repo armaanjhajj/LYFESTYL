@@ -35,6 +35,8 @@ struct CameraScreen: View {
     @State private var toast: String?
     @State private var shutterTaps = 0
     @State private var logs = 0
+    /// Counts frames taken, for the shutter flash.
+    @State private var frames = 0
 
     init(isActive: Bool) {
         self.isActive = isActive
@@ -52,19 +54,11 @@ struct CameraScreen: View {
             Color.appMediaBackground.ignoresSafeArea()
             cameraLayer
             if let image = draft?.image {
-                Color.clear
-                    .overlay {
-                        Image(decorative: image, scale: 1)
-                            .resizable()
-                            .scaledToFill()
-                    }
-                    .clipped()
+                DevelopingPhoto(image: image, isDeveloping: draft?.phase == .analyzing)
                     .ignoresSafeArea()
                     .transition(.opacity)
             }
-            if draft?.phase == .analyzing {
-                ScanSweep().ignoresSafeArea()
-            }
+            ShutterFlash(trigger: frames).ignoresSafeArea()
         }
         .overlay(alignment: .top) { topBar }
         .overlay(alignment: .bottom) { bottomBar }
@@ -296,6 +290,7 @@ struct CameraScreen: View {
     }
 
     private func begin(with image: CGImage) {
+        frames += 1
         let draft = MealDraft(image: image)
         withAnimation(.easeOut(duration: 0.15)) { self.draft = draft }
         draft.analyze(with: analyzer)

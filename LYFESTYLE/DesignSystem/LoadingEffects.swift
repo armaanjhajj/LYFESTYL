@@ -3,8 +3,8 @@
 //  LYFESTYL
 //
 //  How the app looks while it reads a photo. No spinners, no status words:
-//  a scan line sweeps the frozen frame, placeholders shimmer where foods are
-//  about to land, and each food resolves out of a blur as the model writes it.
+//  the frozen frame develops like a print, placeholders shimmer where foods
+//  are about to land, and each food resolves out of a blur as it's written.
 //  Everything goes still under Reduce Motion.
 //
 
@@ -89,48 +89,68 @@ private struct Arrival: ViewModifier {
     }
 }
 
-// MARK: - Scan line
+// MARK: - Developing photo
 
-/// A white line of light that sweeps up and down the frozen photo while it's read.
-/// It stays in the part of the photo the drawer leaves visible.
-struct ScanSweep: View {
-    /// The top fraction of the screen to sweep.
-    var coverage: CGFloat = 0.46
+/// The snapped frame while it's being read: it comes in soft, dim and
+/// nearly colorless, drifts slowly closer as color comes up, and snaps into
+/// focus and full color the moment the result is ready. A photo developing,
+/// not a progress bar.
+struct DevelopingPhoto: View {
+    let image: CGImage
+    let isDeveloping: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// 0 when just snapped, 1 when done.
+    @State private var developed = 0.0
+    @State private var pushedIn = false
 
     var body: some View {
-        GeometryReader { geo in
-            if reduceMotion {
-                Color.appOnMedia.opacity(0.06)
-            } else {
-                TimelineView(.animation) { timeline in
-                    let period = 2.2
-                    let t = timeline.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: period) / period
-                    // Ease in and out at each end, like a scanner head.
-                    let position = 0.5 - 0.5 * cos(t * 2 * .pi)
-                    let y = geo.size.height * (0.08 + (coverage - 0.1) * position)
-                    ZStack {
-                        LinearGradient(
-                            colors: [.clear, Color.appOnMedia.opacity(0.22), .clear],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                        .frame(height: 180)
-                        .position(x: geo.size.width / 2, y: y)
-                        Capsule()
-                            .fill(Color.appOnMedia)
-                            .frame(height: 2)
-                            .shadow(color: Color.appOnMedia, radius: 6)
-                            .shadow(color: Color.appOnMedia.opacity(0.7), radius: 18)
-                            .padding(.horizontal, 12)
-                            .position(x: geo.size.width / 2, y: y)
-                    }
-                }
+        Color.clear
+            .overlay {
+                Image(decorative: image, scale: 1)
+                    .resizable()
+                    .scaledToFill()
+                    .saturation(0.1 + 0.9 * developed)
+                    .brightness(-0.14 * (1 - developed))
+                    .blur(radius: reduceMotion ? 0 : 7 * (1 - developed))
+                    .scaleEffect(pushedIn && !reduceMotion ? 1.05 : 1)
             }
+            .clipped()
+            .onAppear { isDeveloping ? develop() : finish() }
+            .onChange(of: isDeveloping) { _, developing in
+                developing ? develop() : finish()
+            }
+            .accessibilityHidden(true)
+    }
+
+    private func develop() {
+        withAnimation(.easeOut(duration: 4)) { developed = 0.55 }
+        withAnimation(.easeInOut(duration: 5)) { pushedIn = true }
+    }
+
+    private func finish() {
+        withAnimation(.spring(response: 0.55, dampingFraction: 0.85)) {
+            developed = 1
+            pushedIn = false
         }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-        .transition(.opacity)
+    }
+}
+
+// MARK: - Shutter flash
+
+/// The brief white flash of a shutter, played once when a frame is taken.
+struct ShutterFlash: View {
+    let trigger: Int
+    @State private var opacity = 0.0
+
+    var body: some View {
+        Color.appOnMedia
+            .opacity(opacity)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .onChange(of: trigger) {
+                opacity = 0.75
+                withAnimation(.easeOut(duration: 0.35)) { opacity = 0 }
+            }
     }
 }
