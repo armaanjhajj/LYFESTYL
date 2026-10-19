@@ -2,12 +2,13 @@
 //  SettingsView.swift
 //  LYFESTYL
 //
-//  Top left of the camera. The iCloud account that owns the data, daily goals,
-//  Apple Health, and your data. The on-device model only shows up here when
-//  something is wrong with it.
+//  Top left of the camera. Your profile (photo, name, and the iCloud account
+//  that holds your data), daily goals, Apple Health, and your data. The
+//  on-device model only shows up here when something is wrong with it.
 //
 
 import CloudKit
+import PhotosUI
 import SwiftData
 import SwiftUI
 
@@ -17,6 +18,7 @@ struct SettingsView: View {
     @Environment(GoalStore.self) private var goalStore
     @Environment(HealthService.self) private var health
     @Environment(FoodAnalyzer.self) private var analyzer
+    @Environment(ProfileStore.self) private var profile
 
     @Query(sort: \MealEntry.loggedAt) private var meals: [MealEntry]
 
@@ -24,14 +26,17 @@ struct SettingsView: View {
     @State private var healthDenied = false
     @State private var confirmDeleteAll = false
     @FocusState private var focused: Macro?
+    @FocusState private var editingName: Bool
+    @State private var photoItem: PhotosPickerItem?
 
     var body: some View {
         @Bindable var goalStore = goalStore
         @Bindable var health = health
+        @Bindable var profile = profile
 
         NavigationStack {
             Form {
-                accountSection
+                profileSection(name: $profile.name)
                 goalsSection(goals: $goalStore.goals)
                 if health.isAvailable { healthSection(enabled: $health.isWritingEnabled) }
                 if !analyzer.status.canReadPhotos { aiSection }
@@ -50,10 +55,17 @@ struct SettingsView: View {
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
-                    Button("Done") { focused = nil }
+                    Button("Done") { focused = nil; editingName = false }
                 }
             }
             .task { await refreshAccount() }
+            .onChange(of: photoItem) { _, item in
+                guard let item else { return }
+                photoItem = nil
+                Task {
+                    if let data = try? await item.loadTransferable(type: Data.self) { profile.setPhoto(from: data) }
+                }
+            }
             .confirmationDialog("Delete every meal?", isPresented: $confirmDeleteAll, titleVisibility: .visible) {
                 Button("Delete All Meals", role: .destructive) {
                     MealLog(context: context, health: health).deleteAll()
@@ -67,32 +79,53 @@ struct SettingsView: View {
 
     // MARK: - Sections
 
-    private var accountSection: some View {
-        Section {
-            HStack(spacing: 12) {
-                IconChip(
-                    symbol: iCloud == .available ? "icloud.fill" : "icloud.slash.fill",
-                    tint: iCloud == .available ? .appAccentSecondary : .appWarning
-                )
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(accountTitle)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.appTextEmphasis)
-                    if iCloud != nil, iCloud != .available {
-                        Text("Saved on this iPhone until you sign in.")
-                            .font(.subheadline)
-                            .foregroundStyle(.appTextMuted)
+    /// Photo, name, and which iCloud account holds the data.
+    private func profileSection(name: Binding<String>) -> some View {
+        let photoAction = profile.photo == nil ? "Choose Photo" : "Change Photo"
+        return Section {
+            VStack(spacing: 12) {
+                Menu {
+                    PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
+                        Label(photoAction, systemImage: "photo.on.rectangle")
                     }
+                    if profile.photo != nil {
+                        Button("Remove Photo", systemImage: "trash", role: .destructive) { profile.removePhoto() }
+                    }
+                } label: {
+                    Avatar(photo: profile.photo, initials: profile.initials, size: 96)
+                        .overlay(alignment: .bottomTrailing) {
+                            Image(systemName: "camera.circle.fill")
+                                .font(.system(size: 28))
+                                .symbolRenderingMode(.palette)
+                                .foregroundStyle(Color.appBackground, Color.appAccent)
+                                .offset(x: 2, y: 2)
+                        }
                 }
+                .accessibilityLabel("Profile photo")
+
+                TextField("Your Name", text: name)
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(.appTextEmphasis)
+                    .multilineTextAlignment(.center)
+                    .textContentType(.name)
+                    .autocorrectionDisabled()
+                    .submitLabel(.done)
+                    .focused($editingName)
+
+                Label(accountTitle, systemImage: iCloud == .available ? "icloud.fill" : "icloud.slash.fill")
+                    .font(.footnote.weight(.medium))
+                    .foregroundStyle(iCloud == nil || iCloud == .available ? Color.appTextMuted : Color.appWarning)
             }
-            .accessibilityElement(children: .combine)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .listRowBackground(Color.clear)
         }
     }
 
     private var accountTitle: String {
         switch iCloud {
         case .available:              "Syncing with iCloud"
-        case .noAccount:              "Not signed in to iCloud"
+        case .noAccount:              "Not signed in to iCloud, saved on this iPhone"
         case .restricted:             "iCloud is restricted"
         case .temporarilyUnavailable: "iCloud is unavailable"
         case nil:                     "Checking iCloud…"

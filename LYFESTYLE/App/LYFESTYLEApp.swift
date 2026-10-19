@@ -15,6 +15,7 @@ struct LYFESTYLEApp: App {
     @State private var camera = CameraController()
     @State private var goals = GoalStore()
     @State private var health = HealthService()
+    @State private var profile = ProfileStore()
 
     private let container = Self.makeContainer()
 
@@ -25,6 +26,7 @@ struct LYFESTYLEApp: App {
                 .environment(camera)
                 .environment(goals)
                 .environment(health)
+                .environment(profile)
                 .tint(.appAccent)
                 .preferredColorScheme(.light)
         }

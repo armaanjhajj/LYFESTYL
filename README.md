@@ -28,7 +28,7 @@ A free, native iOS calorie tracker that runs entirely on your iPhone. Point the 
 
 **Habits** are plain arithmetic over the last 7 finished days you logged, with no model involved, so every flag has a checkable reason: low protein (under 80% of goal on most logged days), high carbs (over 115%), high fat (over 120%), calories over (110%) or well under (70%, which usually means meals are missing). Fewer than 3 logged days shows no flags.
 
-**Account and settings.** iCloud sync status, daily goals with a calculator (Mifflin-St Jeor, can fill height, weight, age and sex from Apple Health), saving meals to Apple Health, the on-device model's status, CSV export, and delete all.
+**Account and settings.** Your profile photo and name (with the iCloud account that holds your data under it), daily goals with a calculator (Mifflin-St Jeor, can fill height, weight, age and sex from Apple Health), saving meals to Apple Health, the on-device model's status, CSV export, and delete all.
 
 ## Apple frameworks, nothing else
 
@@ -82,7 +82,7 @@ Each food inside `CD_itemsData` uses one-letter keys to stay small:
 | `s` | servings multiplier (omitted when 1) |
 | `k`, `r`, `c`, `f` | kcal, protein g, carbs g, fat g for one portion, rounded |
 
-**iCloud key-value storage**: `goals.v1` (daily goals) and `bodyProfile.v1` (calculator inputs), both JSON.
+**iCloud key-value storage**: `goals.v1` (daily goals) and `bodyProfile.v1` (calculator inputs), both JSON; `profile.name` (string) and `profile.photo` (the chosen profile photo, a 256 px square JPEG of about 25 KB, the only image the app keeps).
 
 **Apple Health**: each meal writes up to four quantity samples (dietary energy, protein, carbohydrates, total fat) with `HKMetadataKeyFoodType` set to the meal title and `HKMetadataKeySyncIdentifier` set to `<meal id>.<macro>`, so edits replace and deletes remove them.
 

@@ -8,7 +8,7 @@ LYFESTYL is a free, native iOS calorie tracker that runs entirely on device. The
 
 3. **Foundation Models, Guided Generation.** Photos go to `SystemLanguageModel.default` as an `Attachment` (iOS 27) and come back through `@Generable` structs with `@Guide` annotations via `LanguageModelSession.streamResponse/respond(generating:)`. No JSON parsing. Read printed text with Vision first: the product is identified behind the scenes but shown with a plain name ("Protein Shake"), and numbers on its label replace the model's estimate (`LabelFacts`). Check `availability` and `capabilities.contains(.vision)`, and when the model can't help, fall back to search and manual entry rather than blocking.
 
-4. **No stored images, ever.** Frames live in memory from the shutter until log or dismiss. Nothing is written to disk or the photo library. Keep stored records as small as possible.
+4. **No stored food images, ever.** Frames live in memory from the shutter until log or dismiss. Nothing is written to disk or the photo library. The one image kept is the profile photo the person chooses, shrunk to 256 px. Keep stored records as small as possible.
 
 5. **Apple's kits are the backend.** Meals are SwiftData mirrored to the CloudKit private database (the source of truth across devices); goals sync through iCloud key-value storage; nutrition can be written to HealthKit. No external services, no accounts, no secrets. The iCloud account is the identity.
 

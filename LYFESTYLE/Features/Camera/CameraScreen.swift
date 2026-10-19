@@ -20,6 +20,7 @@ struct CameraScreen: View {
     @Environment(FoodAnalyzer.self) private var analyzer
     @Environment(HealthService.self) private var health
     @Environment(GoalStore.self) private var goals
+    @Environment(ProfileStore.self) private var profile
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
@@ -165,9 +166,15 @@ struct CameraScreen: View {
             GlassEffectContainer(spacing: 16) {
                 HStack {
                     Button { showSettings = true } label: {
-                        Image(systemName: "person.crop.circle")
-                            .font(.title2)
-                            .frame(width: 44, height: 44)
+                        if profile.photo != nil || !profile.initials.isEmpty {
+                            Avatar(photo: profile.photo, initials: profile.initials, size: 40)
+                                .environment(\.colorScheme, .light)
+                                .frame(width: 44, height: 44)
+                        } else {
+                            Image(systemName: "person.crop.circle")
+                                .font(.title2)
+                                .frame(width: 44, height: 44)
+                        }
                     }
                     .buttonStyle(.glass)
                     .buttonBorderShape(.circle)

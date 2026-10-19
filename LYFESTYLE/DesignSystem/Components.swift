@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 // MARK: - Card surface
 
@@ -253,5 +254,41 @@ struct SliderField<Focus: Hashable>: View {
             let round = pow(10, max(1, (log10(new)).rounded(.down)))
             upper = (new * 1.5 / round).rounded(.up) * round
         }
+    }
+}
+
+// MARK: - Avatar
+
+/// A round profile picture: the photo if there is one, else initials, else a
+/// person glyph, on the brand tint.
+struct Avatar: View {
+    let photo: UIImage?
+    let initials: String
+    var size: CGFloat = 88
+
+    var body: some View {
+        Group {
+            if let photo {
+                Image(uiImage: photo)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                ZStack {
+                    Color.appAccent.opacity(0.18)
+                    if initials.isEmpty {
+                        Image(systemName: "person.fill")
+                            .font(.system(size: size * 0.42, weight: .semibold))
+                            .foregroundStyle(.appAccent)
+                    } else {
+                        Text(initials)
+                            .font(.system(size: size * 0.38, weight: .black))
+                            .foregroundStyle(.appAccent)
+                    }
+                }
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+        .accessibilityHidden(true)
     }
 }
