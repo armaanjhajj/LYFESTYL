@@ -63,9 +63,12 @@ nonisolated enum ScanConfidence {
 
 extension ScannedFood {
     nonisolated var draftItem: DraftItem {
-        DraftItem(
+        var name = self.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Brands printed in all lowercase or all caps read badly as a title.
+        if name == name.lowercased() || name == name.uppercased() { name = name.capitalized }
+        return DraftItem(
             food: FoodItem(
-                name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+                name: name,
                 portion: portion.trimmingCharacters(in: .whitespacesAndNewlines),
                 base: Nutrition(
                     calories: Double(max(0, calories)),
@@ -77,7 +80,7 @@ extension ScannedFood {
             confidence: confidence.confidence,
             alternatives: alternatives
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty && $0.caseInsensitiveCompare(name) != .orderedSame }
+                .filter { !$0.isEmpty && $0.caseInsensitiveCompare(self.name) != .orderedSame }
         )
     }
 }

@@ -26,7 +26,11 @@ struct CameraScreen: View {
 
     @Query private var recentMeals: [MealEntry]
 
+    /// The meal in progress, from the shutter until log or dismiss. Holds the frame.
     @State private var draft: MealDraft?
+    /// The same draft once there's something to review. The drawer only rises
+    /// with a result; while the photo is read, a small pill sits on the frame.
+    @State private var reviewing: MealDraft?
     @State private var showDashboard = false
     @State private var showSettings = false
     @State private var photoItem: PhotosPickerItem?
@@ -64,11 +68,15 @@ struct CameraScreen: View {
         }
         .overlay(alignment: .top) { topBar }
         .overlay(alignment: .bottom) { bottomBar }
+        .overlay { readingOverlay }
         .environment(\.colorScheme, .dark) // camera chrome is glass over video
         .statusBarHidden() // like the system Camera, the feed runs edge to edge
-        .sheet(item: $draft, onDismiss: { prepareForNextSnap() }) { draft in
-            ReviewDrawer(draft: draft, onLog: { log(draft) }, onDelete: {}, onDismiss: { self.draft = nil })
+        .sheet(item: $reviewing, onDismiss: { endDraft() }) { draft in
+            ReviewDrawer(draft: draft, onLog: { log(draft) }, onDelete: {}, onDismiss: { reviewing = nil })
                 .environment(\.colorScheme, .light)
+        }
+        .onChange(of: draft?.phase) { _, phase in
+            if let phase, phase != .analyzing, reviewing == nil { reviewing = draft }
         }
         .sheet(isPresented: $showDashboard) {
             DashboardView()
@@ -302,12 +310,42 @@ struct CameraScreen: View {
         guard !foods.isEmpty else { return }
         MealLog(context: context, health: health).log(foods, at: draft.loggedAt)
         logs += 1
-        self.draft = nil
+        reviewing = nil
         showToast("Logged \(Formatting.calories(foods.nutrition.calories)) kcal")
     }
 
-    private func prepareForNextSnap() {
+    /// Drop the draft, and with it the frame.
+    private func endDraft() {
+        draft?.release()
+        reviewing = nil
+        withAnimation(.easeOut(duration: 0.15)) { draft = nil }
         analyzer.prewarm()
+    }
+
+    /// While the photo is read: a cancel button and a small pill, nothing else.
+    @ViewBuilder
+    private var readingOverlay: some View {
+        if let draft, reviewing == nil, draft.phase == .analyzing {
+            VStack {
+                HStack {
+                    Button(role: .close) { endDraft() }
+                        .buttonStyle(.glass)
+                        .buttonBorderShape(.circle)
+                        .controlSize(.large)
+                    Spacer()
+                }
+                Spacer()
+                ProcessingIndicator()
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+                    .glassEffect(.regular, in: .capsule)
+                    .environment(\.colorScheme, .light)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 40)
+            .transition(.opacity)
+        }
     }
 
     private func showFocus(at point: CGPoint) {

@@ -41,6 +41,10 @@ nonisolated struct LabelFacts: Equatable, Sendable {
         // own. In a panel ("Total Fat 8g Saturated Fat 1g") the next nutrient
         // carries its own amount, so the 8g stays with total fat.
         let nextNutrient = #"(?:of\s+)?(?:added\s+|total\s+|dietary\s+|net\s+)?(?:sugars?|saturated\s+fat|trans\s+fat|fat|carbs?|carbohydrates?|fiber|fibre|sodium|cholesterol|protein)\b"#
+        // OCR on curved bottles misspells and clips words: "Proteln 30g",
+        // "SPROTEIN", "drate 4g" for "Total Carbohydrate 4g".
+        let proteinWord = #"[a-z]?prot[a-z1]{1,3}ns?"#
+        let carbWord = #"(?:carb(?:ohydrate|ohydrates|s)?|[a-z]*hydrates?|[a-z]*drates?)"#
         let ownAmount = #"\s*[:\-]?\s*\d{1,4}(?:\.\d)?\s*(?:g|mg|grams?)\b"#
         let ownedByNext = #"(?!\s+"# + nextNutrient + #"(?!"# + ownAmount + #"))"#
 
@@ -52,14 +56,14 @@ nonisolated struct LabelFacts: Equatable, Sendable {
         ], range: 0...2000)
 
         protein = Self.first(in: text, patterns: [
-            #"protein\s*[:\-]?\s*(\d{1,3}(?:\.\d)?)"# + grams + ownedByNext,
-            #"\b(\d{1,3}(?:\.\d)?)"# + claimGrams + #"\s+"# + filler + #"protein\b"#,
+            #"\b"# + proteinWord + #"\s*[:\-]?\s*(\d{1,3}(?:\.\d)?)"# + grams + ownedByNext,
+            #"\b(\d{1,3}(?:\.\d)?)"# + claimGrams + #"\s+"# + filler + proteinWord + #"\b"#,
         ], range: 0...150)
 
         carbs = Self.first(in: text, patterns: [
             #"total\s+carb(?:ohydrate|ohydrates|s)?\.?\s*[:\-]?\s*(\d{1,3}(?:\.\d)?)"# + grams + ownedByNext,
-            #"(?<!net\s)\bcarb(?:ohydrate|ohydrates|s)\s*[:\-]?\s*(\d{1,3}(?:\.\d)?)"# + grams + ownedByNext,
-            #"\b(\d{1,3}(?:\.\d)?)"# + grams + #"\s+"# + filler + #"carb(?:ohydrate|ohydrates|s)?\b"#,
+            #"(?<!net\s)\b"# + carbWord + #"\.?\s*[:\-]?\s*(\d{1,3}(?:\.\d)?)"# + grams + ownedByNext,
+            #"\b(\d{1,3}(?:\.\d)?)"# + grams + #"\s+"# + filler + carbWord + #"\b"#,
         ], range: 0...300)
 
         fat = Self.first(in: text, patterns: [
@@ -68,7 +72,7 @@ nonisolated struct LabelFacts: Equatable, Sendable {
             #"\b(\d{1,3}(?:\.\d)?)"# + grams + #"\s+"# + filler + #"fat\b"#,
         ], range: 0...150)
 
-        if let match = Self.capture(in: text, pattern: #"serving\s+size\s*[:\-]?\s*([^%]{1,40}?)(?=\s+(?:amount|servings|calories|per\s+container)|$)"#) {
+        if let match = Self.capture(in: text, pattern: #"serving\s+size\s*[:\-]?\s*([^()%]{1,30}?\([^)]{1,20}\)|[^%]{1,40}?(?=\s+(?:a?mount|servings|calories|per\s+container)|$))"#) {
             servingSize = match.trimmingCharacters(in: .whitespacesAndNewlines.union(CharacterSet(charactersIn: ":-.,")))
         }
     }
@@ -94,6 +98,45 @@ nonisolated struct LabelFacts: Equatable, Sendable {
         result[target].confidence = .high
         result[target].alternatives = []
         return result
+    }
+
+    /// The model sometimes lists a word printed on a package ("chocolate",
+    /// "vanilla") as a separate food. Any non-packaged item whose whole name
+    /// appears in the label text is dropped, and its word joins the product's
+    /// name instead. If the model didn't mark anything packaged, the item whose
+    /// name the label text matches best (two or more words) is the product.
+    static func removeLabelWords(
+        from items: [(item: DraftItem, isPackaged: Bool)],
+        labelLines: [String]
+    ) -> [(item: DraftItem, isPackaged: Bool)] {
+        let text = labelLines.joined(separator: " ").lowercased()
+        guard !text.isEmpty, items.count > 1 else { return items }
+        var items = items
+
+        if !items.contains(where: \.isPackaged) {
+            func matched(_ name: String) -> Int {
+                name.lowercased().split(separator: " ").filter { $0.count > 2 && text.contains($0) }.count
+            }
+            let best = items.indices.max { matched(items[$0].item.food.name) < matched(items[$1].item.food.name) }
+            guard let best, matched(items[best].item.food.name) >= 2 else { return items }
+            items[best].isPackaged = true
+        }
+
+        var folded: [String] = []
+        items.removeAll { entry in
+            let name = entry.item.food.name.trimmingCharacters(in: .whitespaces).lowercased()
+            guard !entry.isPackaged, name.count > 2, text.contains(name) else { return false }
+            folded.append(name)
+            return true
+        }
+        let packaged = items.indices.filter { items[$0].isPackaged }
+        if packaged.count == 1 {
+            let i = packaged[0]
+            for word in folded where !items[i].item.food.name.lowercased().contains(word) {
+                items[i].item.food.name += " " + word.capitalized
+            }
+        }
+        return items
     }
 
     // MARK: - Matching

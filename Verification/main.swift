@@ -122,6 +122,27 @@ func food(_ name: String, _ kcal: Double, _ p: Double, _ c: Double, _ f: Double,
     let misread = LabelFacts(lines: ["CORE", "POWER", "26.", "HIGH QUALITY", "PROTEIN", "14 FL OZ (414 mL)"])
     check(misread.protein == 26, "OCR reading 26g as 26. still finds the protein, got \(String(describing: misread.protein))")
 
+    // Lines exactly as Vision read the user's own photo of a Fairlife panel.
+    let realPanel = LabelFacts(lines: ["SHAKE WELL", "Nutrition Facts", "serving per container", "Serving size 1 Bottle (340mL)", "mount per serving",
+                                       "Calories", "150", "% Daily Value*", "Total Fat 2.5g", "3%", "Saturated Fat 1.5g", "8%", "Trans Fat 0g",
+                                       "Cholesterol 25mg", "8%", "Sodium 230mg", "10%", "drate 4g.", "196", "Dietary Fiber 1g", "4%",
+                                       "Total Sugars 2g", "Includes 0g Added Sugars", "0%", "Proteln 30g", "60%"])
+    check(realPanel.calories == 150 && realPanel.fat == 2.5, "real panel: calories and fat")
+    check(realPanel.protein == 30, "real panel: \"Proteln 30g\" is protein, got \(String(describing: realPanel.protein))")
+    check(realPanel.carbs == 4, "real panel: clipped \"drate 4g\" is carbs, got \(String(describing: realPanel.carbs))")
+    check(realPanel.servingSize == "1 bottle (340ml)", "real panel: serving size stops at the parenthesis, got \(String(describing: realPanel.servingSize))")
+
+    let bottle = DraftItem(food: food("Fairlife Nutrition Plan", 150, 30, 0, 3), confidence: .high)
+    let flavor = DraftItem(food: food("chocolate", 150, 0, 0, 0), confidence: .low)
+    let frontLines = ["farlife", "nutrition plan", "2g SUGAR", "150 CALORIES", "CHOCOLATE", "NUTRITION SHAKE"]
+    let cleaned = LabelFacts.removeLabelWords(from: [(bottle, true), (flavor, false)], labelLines: frontLines)
+    check(cleaned.count == 1, "a flavor printed on the label is not a separate food")
+    check(cleaned.first?.item.food.name == "Fairlife Nutrition Plan Chocolate", "the flavor joins the product name, got \(cleaned.first?.item.food.name ?? "-")")
+    let unflagged = LabelFacts.removeLabelWords(from: [(bottle, false), (flavor, false)], labelLines: frontLines)
+    check(unflagged.count == 1 && unflagged[0].isPackaged, "with nothing marked packaged, the best label match is the product")
+    let banana = DraftItem(food: food("Banana", 105, 1, 27, 0), confidence: .high)
+    check(LabelFacts.removeLabelWords(from: [(bottle, true), (banana, false)], labelLines: frontLines).count == 2, "a real second food stays")
+
     let footnoteOnly = LabelFacts(lines: ["Percent Daily Values are based on a 2,000 calorie diet."])
     check(footnoteOnly.isEmpty, "a 2,000 calorie diet footnote is not a calorie count")
     check(LabelFacts(lines: ["Table 4", "Thank you"]).isEmpty, "unrelated text has no facts")

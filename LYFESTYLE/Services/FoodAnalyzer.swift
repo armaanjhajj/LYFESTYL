@@ -42,7 +42,10 @@ final class FoodAnalyzer {
     @ObservationIgnored private var warmSession: LanguageModelSession?
 
     private static let instructions = """
-        You read photos of food for a calorie tracking app. List each distinct food or drink.
+        You read photos of food for a calorie tracking app. List each distinct food or drink \
+        that is the clear subject of the photo. Ignore things in the background or cut off at \
+        the edges. Words printed on a package (flavor, claims, ingredients) describe that \
+        product and are never separate items.
         Packaged products: when a brand or product name is visible, name the item exactly as \
         printed, brand first, never a generic name like "protein shake". Use the nutrition \
         printed on the package for one container or one serving. Text read from the photo is \
@@ -113,7 +116,8 @@ final class FoodAnalyzer {
         let scanned = try FoodScan(final).items
             .map { (item: $0.draftItem, isPackaged: $0.isPackaged) }
             .filter { !$0.item.food.name.isEmpty }
-        return LabelFacts.apply(label.facts, to: scanned)
+        let products = LabelFacts.removeLabelWords(from: scanned, labelLines: label.lines)
+        return LabelFacts.apply(label.facts, to: products)
     }
 
     /// Estimate what the person described, split into items if they listed several.
