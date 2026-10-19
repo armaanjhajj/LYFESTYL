@@ -160,6 +160,8 @@ private struct AnalyzingView: View {
         }
         .scrollContentBackground(.hidden)
         .background(.appBackground)
+        .contentMargins(.top, 0, for: .scrollContent)
+        .listSectionSpacing(.compact)
         .scrollDisabled(true)
         .sensoryFeedback(.impact(weight: .light), trigger: foods.count)
         .accessibilityElement(children: .ignore)
@@ -197,9 +199,7 @@ private struct StreamingRow: View {
                     SkeletonBar(width: 70, height: 14)
                 }
                 if food.hasNumbers {
-                    Text(Formatting.macroLine(protein: food.protein ?? 0, carbs: food.carbs ?? 0, fat: food.fat ?? 0))
-                        .font(.caption)
-                        .foregroundStyle(.appTextMuted)
+                    MacroLine(protein: food.protein ?? 0, carbs: food.carbs ?? 0, fat: food.fat ?? 0)
                         .transition(.blurReplace)
                 } else {
                     SkeletonBar(width: 90, height: 9)
@@ -276,6 +276,8 @@ private struct DraftReviewList: View {
         }
         .scrollContentBackground(.hidden)
         .background(.appBackground)
+        .contentMargins(.top, 0, for: .scrollContent)
+        .listSectionSpacing(.compact)
         .confirmationDialog("Delete this meal?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Delete Meal", role: .destructive, action: onDelete)
         }
@@ -330,9 +332,7 @@ struct FoodRow<Badge: View>: View {
                 Text("\(Formatting.calories(n.calories)) kcal")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(.appTextEmphasis)
-                Text(Formatting.macroLine(protein: n.protein, carbs: n.carbs, fat: n.fat))
-                    .font(.caption)
-                    .foregroundStyle(.appTextMuted)
+                MacroLine(protein: n.protein, carbs: n.carbs, fat: n.fat)
             }
             .monospacedDigit()
         }
@@ -340,36 +340,58 @@ struct FoodRow<Badge: View>: View {
     }
 }
 
-/// Big calories plus the three macros, the top of the drawer.
+/// The top of the drawer: big calories with how much of the day they are,
+/// and a ring per macro filling toward the daily goal.
 struct NutritionSummary: View {
     let nutrition: Nutrition
+    @Environment(GoalStore.self) private var goalStore
 
     var body: some View {
-        HStack(alignment: .lastTextBaseline) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(Formatting.calories(nutrition.calories))
-                    .font(.system(size: 44, weight: .black))
-                    .foregroundStyle(.appTextEmphasis)
-                    .contentTransition(.numericText())
-                Text("CALORIES").sectionHeader(color: .appTextMuted)
+        let goals = goalStore.goals
+        let dayShare = goals.calories > 0 ? nutrition.calories / goals.calories : 0
+        VStack(spacing: 20) {
+            HStack(alignment: .lastTextBaseline) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(Formatting.calories(nutrition.calories))
+                        .font(.system(size: 56, weight: .black))
+                        .foregroundStyle(.appTextEmphasis)
+                        .contentTransition(.numericText(value: nutrition.calories))
+                    Text("CALORIES").sectionHeader(color: .appTextMuted)
+                }
+                Spacer()
+                Text("\(Formatting.percent(fraction: dayShare)) OF DAY")
+                    .font(.caption.weight(.black))
+                    .tracking(0.5)
+                    .foregroundStyle(.appTextMuted)
+                    .contentTransition(.numericText(value: dayShare))
             }
-            Spacer()
-            HStack(spacing: 16) {
+            HStack(spacing: 0) {
                 ForEach([Macro.protein, .carbs, .fat]) { macro in
-                    VStack(spacing: 2) {
-                        Text(Formatting.grams(nutrition[macro]))
-                            .font(.headline)
-                            .foregroundStyle(macro.accent)
-                            .contentTransition(.numericText())
+                    VStack(spacing: 8) {
+                        ZStack {
+                            ProgressRing(fraction: goals[macro] > 0 ? nutrition[macro] / goals[macro] : 0, tint: macro.accent, lineWidth: 9)
+                            HStack(alignment: .firstTextBaseline, spacing: 1) {
+                                Text(Formatting.grams(nutrition[macro], includeUnit: false))
+                                    .font(.title2.weight(.black))
+                                    .foregroundStyle(.appTextEmphasis)
+                                    .contentTransition(.numericText(value: nutrition[macro]))
+                                Text("g")
+                                    .font(.footnote.weight(.semibold))
+                                    .foregroundStyle(.appTextMuted)
+                            }
+                        }
+                        .frame(width: 78, height: 78)
                         Text(macro.label)
-                            .font(.caption2)
-                            .fontWeight(.black)
-                            .foregroundStyle(.appTextMuted)
+                            .font(.caption.weight(.black))
+                            .tracking(0.5)
+                            .foregroundStyle(macro.accent)
                     }
+                    .frame(maxWidth: .infinity)
                 }
             }
         }
         .monospacedDigit()
+        .padding(.horizontal, 8)
         .animation(.snappy, value: nutrition)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(Formatting.calories(nutrition.calories)) calories, \(Formatting.grams(nutrition.protein)) protein, \(Formatting.grams(nutrition.carbs)) carbs, \(Formatting.grams(nutrition.fat)) fat")

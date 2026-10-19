@@ -91,7 +91,7 @@ private struct Arrival: ViewModifier {
 
 // MARK: - Scan line
 
-/// A line of light that sweeps up and down the frozen photo while it's read.
+/// A white line of light that sweeps up and down the frozen photo while it's read.
 /// It stays in the part of the photo the drawer leaves visible.
 struct ScanSweep: View {
     /// The top fraction of the screen to sweep.
@@ -102,7 +102,7 @@ struct ScanSweep: View {
     var body: some View {
         GeometryReader { geo in
             if reduceMotion {
-                Color.appAccent.opacity(0.08)
+                Color.appOnMedia.opacity(0.06)
             } else {
                 TimelineView(.animation) { timeline in
                     let period = 2.2
@@ -112,7 +112,7 @@ struct ScanSweep: View {
                     let y = geo.size.height * (0.08 + (coverage - 0.1) * position)
                     ZStack {
                         LinearGradient(
-                            colors: [.clear, Color.appAccent.opacity(0.28), .clear],
+                            colors: [.clear, Color.appOnMedia.opacity(0.22), .clear],
                             startPoint: .top,
                             endPoint: .bottom
                         )
@@ -121,8 +121,8 @@ struct ScanSweep: View {
                         Capsule()
                             .fill(Color.appOnMedia)
                             .frame(height: 2)
-                            .shadow(color: Color.appAccent, radius: 8)
-                            .shadow(color: Color.appAccent.opacity(0.6), radius: 20)
+                            .shadow(color: Color.appOnMedia, radius: 6)
+                            .shadow(color: Color.appOnMedia.opacity(0.7), radius: 18)
                             .padding(.horizontal, 12)
                             .position(x: geo.size.width / 2, y: y)
                     }
