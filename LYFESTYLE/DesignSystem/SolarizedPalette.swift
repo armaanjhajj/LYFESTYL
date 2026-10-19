@@ -3,7 +3,8 @@
 //  LYFESTYL
 //
 //  The ONE source of truth for color. The entire app uses the Solarized **Light**
-//  palette (CLAUDE.md §3.1), warm beige paper, never dark. Never reach for
+//  palette, warm beige paper. The one dark surface is the camera itself, which
+//  uses the deep Solarized tones below. Never reach for
 //  Color.blue, system grays, or an off-palette hex anywhere else, reference
 //  `Solar.*` / the semantic aliases.
 //
@@ -15,7 +16,7 @@
 import SwiftUI
 
 /// Raw Solarized palette. Hexes are exact per the canonical Solarized spec; the
-/// light-mode surface/content roles are documented inline (CLAUDE.md §3.1).
+/// light-mode surface/content roles are documented inline.
 nonisolated enum Solar {
     // Surfaces (light)
     static let base3 = Color(hex: 0xFDF6E3) // primary background, the beige, everywhere
@@ -26,20 +27,20 @@ nonisolated enum Solar {
     static let base01 = Color(hex: 0x4B5E63) // emphasized text, headers, primary labels
     static let base00 = Color(hex: 0x56696F) // primary body text
     static let base1  = Color(hex: 0x7D8989) // secondary / muted text, separators, placeholders
-    // Deep Solarized tones, kept for palette completeness; NOT used as surfaces
-    // on light. Do not introduce these as backgrounds/text.
+    // Deep Solarized tones. Used ONLY behind and over the live camera feed
+    // (`appMediaBackground`), never as surfaces on the beige app.
     static let base0  = Color(hex: 0x839496)
     static let base02 = Color(hex: 0x073642)
     static let base03 = Color(hex: 0x002B36)
     // Main accents (define the brand)
-    static let green   = Color(hex: 0x859900) // PRIMARY accent: app tint, brand, EXCELLENT
-    static let blue    = Color(hex: 0x268BD2) // SECONDARY accent: informational, links, charts
-    // Supporting accents (semantic moments only, ranks, chart series)
-    static let cyan    = Color(hex: 0x2AA198) // GOOD
-    static let yellow  = Color(hex: 0xB58900) // OKAY
-    static let orange  = Color(hex: 0xCB4B16) // BAD
-    static let red     = Color(hex: 0xDC322F) // AWFUL
-    static let magenta = Color(hex: 0xD33682) // reserved, rare semantic use only
+    static let green   = Color(hex: 0x859900) // PRIMARY accent: app tint, brand, calories, on track
+    static let blue    = Color(hex: 0x268BD2) // SECONDARY accent: informational, links, protein
+    // Supporting accents (semantic moments only, macros, chart series, flags)
+    static let cyan    = Color(hex: 0x2AA198)
+    static let yellow  = Color(hex: 0xB58900) // carbs
+    static let orange  = Color(hex: 0xCB4B16) // habit flags, "check this" moments
+    static let red     = Color(hex: 0xDC322F) // destructive, over goal
+    static let magenta = Color(hex: 0xD33682) // fat
     static let violet  = Color(hex: 0x6C71C4) // reserved, rare semantic use only
 }
 
@@ -65,6 +66,14 @@ nonisolated extension ShapeStyle where Self == Color {
     static var appAccent: Color { Solar.green }
     /// SECONDARY accent, informational, links, secondary chart series (`blue`).
     static var appAccentSecondary: Color { Solar.blue }
+    /// Attention, a habit worth a look or an item worth checking (`orange`).
+    static var appWarning: Color { Solar.orange }
+    /// Destructive actions and "over goal" (`red`).
+    static var appDestructive: Color { Solar.red }
+    /// Behind the live camera feed and frozen frames (`base03`).
+    static var appMediaBackground: Color { Solar.base03 }
+    /// Icons and text drawn over the camera feed (`base3`, the beige).
+    static var appOnMedia: Color { Solar.base3 }
 }
 
 nonisolated extension Color {

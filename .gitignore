@@ -1,4 +1,4 @@
-# ---- Secrets (never commit) ----
+# ---- Never commit local credentials (the app needs none) ----
 LYFESTYLE/Secrets.plist
 *.secret.plist
 
@@ -30,16 +30,3 @@ Package.resolved.bak
 # ---- Misc ----
 *.log
 *.tmp
-
-# Verification working files (fixtures are downloaded, deps are installed locally)
-Verification/**/node_modules/
-Verification/**/venv/
-Verification/**/fitdata/
-Verification/**/*.o
-Verification/**/swift_out.txt
-Verification/FIT/fitdump
-Verification/FIT/fit_profile.mjs
-Verification/Statistics/harness
-Verification/FIT/package.json
-Verification/FIT/package-lock.json
-Verification/Hevy/samples/

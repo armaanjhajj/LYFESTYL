@@ -2,9 +2,9 @@
 //  Components.swift
 //  LYFESTYL
 //
-//  Reusable CONTENT components (cards, badges, chips, pills). Per CLAUDE.md §2.2
-//  glass goes on chrome only, these are content, so they use solid Solarized
-//  surfaces (base02 cards, base03 insets), never `.glassEffect`.
+//  Reusable CONTENT components (cards, chips, empty states). Glass goes on
+//  chrome only; these are content, so they use solid Solarized surfaces, never
+//  `.glassEffect`.
 //
 
 import SwiftUI
@@ -12,7 +12,7 @@ import SwiftUI
 // MARK: - Card surface
 
 extension View {
-    /// The standard elevated content surface: a base02 rounded card.
+    /// The standard elevated content surface: a base2 rounded card.
     func cardSurface(cornerRadius: CGFloat = 18, padding: CGFloat = 16) -> some View {
         self
             .padding(padding)
@@ -20,19 +20,21 @@ extension View {
     }
 }
 
-// MARK: - Category icon chip
+// MARK: - Icon chip
 
-struct CategoryIcon: View {
-    let category: InsightCategory
+/// An SF Symbol on a soft tinted rounded square, the Apple Health row icon.
+struct IconChip: View {
+    let symbol: String
+    var tint: Color = .appAccent
     var size: CGFloat = 36
 
     var body: some View {
-        Image(systemName: category.symbolName)
+        Image(systemName: symbol)
             .font(.system(size: size * 0.46, weight: .semibold))
-            .foregroundStyle(category.accent)
+            .foregroundStyle(tint)
             .frame(width: size, height: size)
             .background(
-                category.accent.opacity(0.18),
+                tint.opacity(0.18),
                 in: RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
             )
             .accessibilityHidden(true)

@@ -2,8 +2,8 @@
 //  Typography.swift
 //  LYFESTYL
 //
-//  SF Pro only (the default system font), no Rounded, no Mono, no custom fonts
-//  (CLAUDE.md §3.2). Titles / headers / section headers / category labels are
+//  SF Pro only (the default system font), no Rounded, no Mono, no custom fonts.
+//  Titles / headers / section headers / category labels are
 //  ALL CAPS + black weight; body stays normal. These helpers keep that rule in
 //  one place so screens just say `.sectionHeader()` etc.
 //
@@ -79,5 +79,27 @@ struct CapsTitle: View {
             .textCase(.uppercase)
             .tracking(tracking)
             .foregroundStyle(color)
+    }
+}
+
+extension View {
+    /// An inline navigation title in the house style, ALL CAPS black weight.
+    /// The plain system title stays set underneath for VoiceOver and the back
+    /// button's long-press menu.
+    func capsNavigationTitle(_ title: String) -> some View {
+        self.navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text(title)
+                        .font(.headline)
+                        .fontWeight(.black)
+                        .textCase(.uppercase)
+                        .tracking(0.6)
+                        .foregroundStyle(.appTextEmphasis)
+                        .lineLimit(1)
+                        .accessibilityAddTraits(.isHeader)
+                }
+            }
     }
 }

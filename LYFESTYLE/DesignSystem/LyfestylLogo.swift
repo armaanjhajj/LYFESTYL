@@ -3,7 +3,7 @@
 //  LYFESTYL
 //
 //  The logo: two four-letter words stacked into a tight square block, black
-//  weight SF Pro, all caps (CLAUDE.md §3.3). The square read comes from the
+//  weight SF Pro, all caps. The square read comes from the
 //  block layout, NOT from a mono font. The font stays normal SF Pro.
 //
 //      LYFE  ← green
