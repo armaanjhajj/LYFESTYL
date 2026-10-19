@@ -2,12 +2,11 @@
 //  SettingsView.swift
 //  LYFESTYL
 //
-//  Top left of the camera. Your profile (photo, name, and the iCloud account
-//  that holds your data), daily goals, Apple Health, and your data. The
-//  on-device model only shows up here when something is wrong with it.
+//  Top left of the camera. Your profile (photo and name), daily goals, Apple
+//  Health, and your data. The on-device model only shows up here when
+//  something is wrong with it.
 //
 
-import CloudKit
 import PhotosUI
 import SwiftData
 import SwiftUI
@@ -22,7 +21,6 @@ struct SettingsView: View {
 
     @Query(sort: \MealEntry.loggedAt) private var meals: [MealEntry]
 
-    @State private var iCloud: CKAccountStatus?
     @State private var healthDenied = false
     @State private var confirmDeleteAll = false
     @FocusState private var focused: Macro?
@@ -60,7 +58,6 @@ struct SettingsView: View {
                     Button("Done") { focused = nil; editingName = false }
                 }
             }
-            .task { await refreshAccount() }
             .photosPicker(isPresented: $choosingPhoto, selection: $photoItem, matching: .images, photoLibrary: .shared())
             .fullScreenCover(isPresented: $takingPhoto) {
                 CameraPicker { profile.setPhoto(from: $0) }
@@ -86,7 +83,7 @@ struct SettingsView: View {
 
     // MARK: - Sections
 
-    /// Photo, name, and which iCloud account holds the data.
+    /// Photo and name.
     private func profileSection(name: Binding<String>) -> some View {
         let photoAction = profile.photo == nil ? "Choose Photo" : "Change Photo"
         return Section {
@@ -120,24 +117,10 @@ struct SettingsView: View {
                     .submitLabel(.done)
                     .focused($editingName)
 
-                Label(accountTitle, systemImage: iCloud == .available ? "icloud.fill" : "icloud.slash.fill")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(iCloud == nil || iCloud == .available ? Color.appTextMuted : Color.appWarning)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
             .listRowBackground(Color.clear)
-        }
-    }
-
-    private var accountTitle: String {
-        switch iCloud {
-        case .available:              "Syncing with iCloud"
-        case .noAccount:              "Not signed in to iCloud, saved on this iPhone"
-        case .restricted:             "iCloud is restricted"
-        case .temporarilyUnavailable: "iCloud is unavailable"
-        case nil:                     "Checking iCloud…"
-        default:                      "iCloud"
         }
     }
 
@@ -244,7 +227,4 @@ struct SettingsView: View {
         }
     }
 
-    private func refreshAccount() async {
-        iCloud = try? await CKContainer(identifier: LYFESTYLEApp.cloudContainerID).accountStatus()
-    }
 }

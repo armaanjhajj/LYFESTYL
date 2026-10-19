@@ -28,7 +28,7 @@ A free, native iOS calorie tracker that runs entirely on your iPhone. Point the 
 
 **Habits** are plain arithmetic over the last 7 finished days you logged, with no model involved, so every flag has a checkable reason: low protein (under 80% of goal on most logged days), high carbs (over 115%), high fat (over 120%), calories over (110%) or well under (70%, which usually means meals are missing). Fewer than 3 logged days shows no flags.
 
-**Account and settings.** Your profile photo and name (with the iCloud account that holds your data under it), daily goals with a calculator (Mifflin-St Jeor, can fill height, weight, age and sex from Apple Health), saving meals to Apple Health, the on-device model's status, CSV export, and delete all.
+**Account and settings.** Your profile photo and name, daily goals with a calculator (Mifflin-St Jeor, can fill height, weight, age and sex from Apple Health), saving meals to Apple Health, the on-device model's status, CSV export, and delete all.
 
 ## Apple frameworks, nothing else
 
