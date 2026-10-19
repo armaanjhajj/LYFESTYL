@@ -8,19 +8,21 @@ A free, native iOS calorie tracker that runs entirely on your iPhone. Point the 
   <img src="Screenshots/03-dashboard.png" width="240" alt="Dashboard">
 </p>
 
-<sub>Simulator screenshots with sample meals.</sub>
+<sub>Simulator screenshots with sample meals. Product photo from Open Food Facts, CC BY-SA.</sub>
 
 ## How it works
 
 **One screen: the camera.** Shutter bottom center, account and settings top left, dashboard top right, today's calories left at the top. The photo library button (bottom left) and search (bottom right) cover meals you can't photograph right now. The volume buttons and Camera Control also work as the shutter.
 
-**Snap.** The shutter doesn't run a photo capture. It grabs the next frame from the live video feed, the way Snapchat does, so it's instant. The frame freezes on screen and the drawer rises while Foundation Models reads it. Food names stream in as the model finds them.
+**Snap.** The shutter doesn't run a photo capture. It grabs the next frame from the live video feed (4K where available), the way Snapchat does, so it's instant. The frame freezes on screen and the drawer rises while it's read. Food names stream in as the model finds them.
 
-**Confident result.** The drawer lists each food on its own with its estimate. Tap a food to change its name, servings or numbers, pick one of the model's other guesses, or search for something else. Swipe to remove, Add Food to add. X dismisses, + logs, the retry button reads the photo again (sampled, so it can come out differently).
+**Labels are read, not guessed.** Before the model runs, Vision reads any printed text in the frame on device (about 0.2 s). That text goes into the prompt so a packaged product is named exactly as printed, brand first. Any nutrition numbers on the label, from a Nutrition Facts panel ("Protein 30g") or a front-of-pack claim ("30g HIGH QUALITY PROTEIN", "150 CALORIES"), replace the model's estimate for that product outright and mark it high confidence (`LabelFacts`). Numbers are only attached when it's clear which food the label belongs to: the one packaged item, or the only item. Unlabeled food is estimated from typical USDA values.
+
+**Confident result.** The drawer shows the total and each food with its numbers, nothing else. The time is recorded silently. Tap a food to change its name, servings or numbers, pick one of the model's other guesses, or search for something else. Swipe to remove, Add Food to add. X dismisses, + logs, the retry button reads the photo again (sampled, so it can come out differently).
 
 **Unsure result.** If the model can't commit to anything, or sees no food, the drawer opens on search instead: its guesses first, then your recent foods. Typing searches foods you've logged before, a bundled table of about 120 common foods, and offers an on-device estimate of whatever you typed ("two eggs and toast" works) or manual entry. Individual low-confidence foods in a confident scan are marked CHECK and lead to the same search.
 
-**No photos kept.** Frames are downscaled to 1280 px in memory and released the moment you log or dismiss. Nothing is written to disk or the photo library. A logged meal stores only its foods, as one binary blob of well under 100 bytes per food.
+**No photos kept.** Frames are capped at 2560 px in memory and released the moment you log or dismiss. Nothing is written to disk or the photo library. A logged meal stores only its foods, as one binary blob of well under 100 bytes per food.
 
 **Dashboard.** Today's calorie ring and macro bars, today's meals, habit flags, the last seven days for any macro against its goal, and the full history by day. Tap any meal to edit it in the same drawer.
 
@@ -34,6 +36,7 @@ A free, native iOS calorie tracker that runs entirely on your iPhone. Point the 
 | --- | --- |
 | Camera | AVFoundation (`AVCaptureVideoDataOutput`, virtual multi-camera for close-up auto switching) |
 | Reading food | FoundationModels (`Attachment`, `@Generable`, `streamResponse`), iOS 27 |
+| Reading labels | Vision (`RecognizeTextRequest`) |
 | Meal storage and sync | SwiftData mirrored to the CloudKit private database |
 | Goals sync | iCloud key-value storage (`NSUbiquitousKeyValueStore`) |
 | Health | HealthKit (write dietary energy, protein, carbs, fat; read body metrics) |
@@ -66,7 +69,7 @@ SwiftData's CloudKit mirroring writes one record per meal to the private databas
 | Field | CloudKit type | Swift | Notes |
 | --- | --- | --- | --- |
 | `CD_id` | String | `UUID` | Stable across devices; prefix of the Apple Health sync identifiers |
-| `CD_loggedAt` | Date/Time | `Date` | When the meal was eaten; meal type (breakfast, lunch, dinner, snack) is derived from it, never stored |
+| `CD_loggedAt` | Date/Time | `Date` | When the meal was logged, recorded automatically |
 | `CD_itemsData` | Bytes | `Data` | `[FoodItem]` as a binary property list |
 | `CD_entityName` | String | | Added by SwiftData |
 
@@ -106,4 +109,4 @@ Verification/     logic checks compiled against the app's own sources
 Verification/run.sh
 ```
 
-Compiles the pure-logic sources (storage encoding, nutrition math, goal calculator, habit rules, CSV export, food search and the bundled table's internal consistency) with a set of hand-worked checks, and runs them on the Mac. It needs no simulator.
+Compiles the pure-logic sources (storage encoding, nutrition math, goal calculator, habit rules, label parsing, CSV export, food search and the bundled table's internal consistency) with a set of hand-worked checks, and runs them on the Mac. It needs no simulator.

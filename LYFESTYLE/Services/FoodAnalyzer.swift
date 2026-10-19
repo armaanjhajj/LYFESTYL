@@ -6,6 +6,10 @@
 //    1. look at a photo and itemize every food with nutrition and confidence
 //    2. estimate nutrition for something the person typed
 //
+//  Photos are read for printed text first (Vision, also on device). The text
+//  goes into the prompt so packaged products are named exactly, and numbers
+//  printed on a label replace the model's estimate for that product.
+//
 //  Each request gets a fresh session (nothing carries between meals), and the
 //  next session is created and prewarmed ahead of time so a snap starts
 //  generating immediately.
@@ -38,11 +42,14 @@ final class FoodAnalyzer {
     @ObservationIgnored private var warmSession: LanguageModelSession?
 
     private static let instructions = """
-        You estimate nutrition for a calorie tracking app. Identify each food and drink, \
-        estimate the amount, then give calories and grams of protein, carbohydrate and fat \
-        for that amount using typical values for the food as it is usually prepared, \
-        including visible oils, sauces and dressings. Prefer common names. \
-        Be honest about confidence.
+        You read photos of food for a calorie tracking app. List each distinct food or drink.
+        Packaged products: when a brand or product name is visible, name the item exactly as \
+        printed, brand first, never a generic name like "protein shake". Use the nutrition \
+        printed on the package for one container or one serving. Text read from the photo is \
+        given to you; trust it over your own guess.
+        Everything else: estimate the visible amount and use typical USDA values for it, \
+        including visible oils, sauces and dressings.
+        Confidence is high when the food and the amount are clear, low when they are not.
         """
 
     init() { refresh() }
@@ -52,13 +59,13 @@ final class FoodAnalyzer {
         case .available:
             status = model.capabilities.contains(.vision) ? .ready : .textOnly
         case .unavailable(.deviceNotEligible):
-            status = .unavailable("This iPhone doesn't support Apple Intelligence, so photos can't be read. You can still search and log foods.")
+            status = .unavailable("Photos need Apple Intelligence. Search still works.")
         case .unavailable(.appleIntelligenceNotEnabled):
-            status = .unavailable("Turn on Apple Intelligence in Settings to log meals from photos. You can still search and log foods.")
+            status = .unavailable("Turn on Apple Intelligence to log from photos.")
         case .unavailable(.modelNotReady):
-            status = .unavailable("Apple Intelligence is still downloading. Photo logging will work once it finishes.")
+            status = .unavailable("Apple Intelligence is still downloading.")
         case .unavailable:
-            status = .unavailable("On-device AI isn't available right now. You can still search and log foods.")
+            status = .unavailable("Photos can't be read right now. Search still works.")
         }
         log.info("Model status: \(String(describing: self.status), privacy: .public)")
     }
@@ -81,9 +88,15 @@ final class FoodAnalyzer {
     ) async throws -> [DraftItem] {
         let started = ContinuousClock.now
         defer { log.info("Photo read in \(ContinuousClock.now - started, privacy: .public)") }
+        let label = await LabelReader.read(image)
+        log.info("Label text: \(label.lines.count, privacy: .public) lines, facts found: \(!label.facts.isEmpty, privacy: .public)")
+        let request = label.promptText.map {
+            "Itemize the food and drink in this photo.\n\nText read from the photo:\n\($0)"
+        } ?? "Itemize the food and drink in this photo."
+
         let session = takeSession()
         let stream = session.streamResponse(generating: FoodScan.self, options: options(varied: varied)) {
-            "Itemize the food and drink in this photo."
+            request
             Attachment(image, orientation: .up)
         }
         var lastNames: [String] = []
@@ -97,7 +110,10 @@ final class FoodAnalyzer {
             }
         }
         guard let final else { return [] }
-        return try FoodScan(final).items.map(\.draftItem).filter { !$0.food.name.isEmpty }
+        let scanned = try FoodScan(final).items
+            .map { (item: $0.draftItem, isPackaged: $0.isPackaged) }
+            .filter { !$0.item.food.name.isEmpty }
+        return LabelFacts.apply(label.facts, to: scanned)
     }
 
     /// Estimate what the person described, split into items if they listed several.
@@ -117,18 +133,16 @@ final class FoodAnalyzer {
         if let error = error as? LanguageModelError {
             switch error {
             case .guardrailViolation, .refusal:
-                return "This photo couldn't be read. Try a closer shot of just the food."
-            case .rateLimited:
-                return "On-device AI is busy. Try again in a moment."
-            case .timeout:
-                return "That took too long. Try again."
+                return "Try a closer shot of just the food."
+            case .rateLimited, .timeout:
+                return "Try again in a moment."
             case .unsupportedLanguageOrLocale:
-                return "On-device AI doesn't support your language yet."
+                return "Your language isn't supported yet."
             default:
                 break
             }
         }
-        return "Something went wrong reading this. Try again, or search for the food."
+        return "Try again, or search for it."
     }
 
     // MARK: - Sessions

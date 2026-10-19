@@ -6,7 +6,7 @@ LYFESTYL is a free, native iOS calorie tracker that runs entirely on device. The
 
 2. **Never hallucinate APIs.** If you aren't certain a symbol exists in the iOS 27 SDK, stop and verify it in the SDK's `.swiftinterface` or use a known-good documented alternative. There is no `.liquidGlass()` or `LiquidGlassView`; the real APIs are `.glassEffect()`, `GlassEffectContainer`, `.glassEffectID()` and the `.glass`/`.glassProminent` button styles. Glass goes on chrome, not content.
 
-3. **Foundation Models, Guided Generation.** Photos go to `SystemLanguageModel.default` as an `Attachment` (iOS 27) and come back through `@Generable` structs with `@Guide` annotations via `LanguageModelSession.streamResponse/respond(generating:)`. No JSON parsing. Check `availability` and `capabilities.contains(.vision)`, and when the model can't help, fall back to search and manual entry rather than blocking.
+3. **Foundation Models, Guided Generation.** Photos go to `SystemLanguageModel.default` as an `Attachment` (iOS 27) and come back through `@Generable` structs with `@Guide` annotations via `LanguageModelSession.streamResponse/respond(generating:)`. No JSON parsing. Read printed text with Vision first: a packaged product is named as printed, and numbers on its label replace the model's estimate (`LabelFacts`). Check `availability` and `capabilities.contains(.vision)`, and when the model can't help, fall back to search and manual entry rather than blocking.
 
 4. **No stored images, ever.** Frames live in memory from the shutter until log or dismiss. Nothing is written to disk or the photo library. Keep stored records as small as possible.
 
@@ -18,6 +18,8 @@ LYFESTYL is a free, native iOS calorie tracker that runs entirely on device. The
 
 8. **Native-first dependencies.** Target iOS 27, Swift 6, `@Observable`, async/await. No third-party packages unless truly necessary.
 
-9. **Ship quality, stay in scope.** One camera, one drawer, one dashboard, one settings page, done well (empty states, errors, permissions, accessibility, haptics). Keep the build green and `Verification/run.sh` passing, commit in logical increments, keep the README's setup and CloudKit schema current.
+9. **Minimal text.** Logging is just a food. No meal types, no time pickers, no explanatory footers; record what can be recorded silently.
 
-10. **NO EM DASHES**
+10. **Ship quality, stay in scope.** One camera, one drawer, one dashboard, one settings page, done well (empty states, errors, permissions, accessibility, haptics). Keep the build green and `Verification/run.sh` passing, commit in logical increments, keep the README's setup and CloudKit schema current.
+
+11. **NO EM DASHES**

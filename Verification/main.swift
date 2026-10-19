@@ -71,7 +71,7 @@ func food(_ name: String, _ kcal: Double, _ p: Double, _ c: Double, _ f: Double,
     check(kinds.contains(.highCarbs), "310 g vs 220 g goal flags high carbs")
     check(!kinds.contains(.highFat), "65 g fat on a 65 g goal is not flagged")
     check(!kinds.contains(.highCalories) && !kinds.contains(.lowCalories), "2100 kcal on 2000 is within range")
-    check(habits.first { $0.kind == .lowProtein }?.detail.contains("5 of the last 5 days") == true, "detail counts days")
+    check(habits.first { $0.kind == .lowProtein }?.detail.contains("5 of 5 days") == true, "detail counts days")
 
     let steady = HabitEngine.dailyTotals((1...4).map { (day($0), Nutrition(calories: 2000, protein: 140, carbs: 220, fat: 65)) }, calendar: cal)
     if case .habits(let h) = HabitEngine.evaluate(days: steady, goals: goals, now: now, calendar: cal) {
@@ -98,6 +98,43 @@ func food(_ name: String, _ kcal: Double, _ p: Double, _ c: Double, _ f: Double,
         return f.base.calories > 40 && abs(fromMacros - f.base.calories) / f.base.calories > 0.3
     }
     check(bad.isEmpty, "bundled foods' macros agree with their calories within 30% (alcohol excluded)" + (bad.isEmpty ? "" : ": " + bad.map(\.name).joined(separator: ", ")))
+
+    print("Labels")
+    let front = LabelFacts(lines: ["fairlife", "nutrition plan", "30g", "HIGH QUALITY", "PROTEIN", "2g", "SUGAR", "150", "CALORIES", "CHOCOLATE", "NUTRITION SHAKE"])
+    check(front.protein == 30, "front of pack: 30g HIGH QUALITY PROTEIN is 30 g, got \(String(describing: front.protein))")
+    check(front.calories == 150, "front of pack: 150 CALORIES, got \(String(describing: front.calories))")
+    check(front.carbs == nil && front.fat == nil, "front of pack: sugar is not carbs, no fat claimed")
+
+    let panel = LabelFacts(lines: ["Nutrition Facts", "1 serving per container", "Serving size 1 bottle (340mL)", "Amount per serving", "Calories 150",
+                                   "% Daily Value*", "Total Fat 2.5g 3%", "Saturated Fat 1.5g 8%", "Trans Fat 0g", "Cholesterol 20mg 7%",
+                                   "Sodium 280mg 12%", "Total Carbohydrate 4g 1%", "Dietary Fiber 1g 4%", "Total Sugars 2g", "Protein 30g 60%",
+                                   "*The % Daily Value tells you how much a nutrient contributes to a daily diet. 2,000 calories a day is used for general nutrition advice."])
+    check(panel.calories == 150 && panel.protein == 30, "panel: calories and protein")
+    check(panel.fat == 2.5, "panel: total fat, not saturated, got \(String(describing: panel.fat))")
+    check(panel.carbs == 4, "panel: total carbohydrate, got \(String(describing: panel.carbs))")
+    check(panel.servingSize == "1 bottle (340ml)", "panel: serving size, got \(String(describing: panel.servingSize))")
+
+    let split = LabelFacts(lines: ["Calories", "230", "Total Fat", "8g", "Saturated Fat 1g", "Total Carbohydrate", "37g", "Protein", "3g"])
+    check(split.calories == 230 && split.fat == 8 && split.carbs == 37 && split.protein == 3, "panel with values on their own lines")
+
+    let multipack = LabelFacts(lines: ["nutrition plan", "150", "CALORIES", "PER BOTTLE", "8", "BOTTLES"])
+    check(multipack.calories == 150, "150 CALORIES PER BOTTLE 8 is 150, got \(String(describing: multipack.calories))")
+    let misread = LabelFacts(lines: ["CORE", "POWER", "26.", "HIGH QUALITY", "PROTEIN", "14 FL OZ (414 mL)"])
+    check(misread.protein == 26, "OCR reading 26g as 26. still finds the protein, got \(String(describing: misread.protein))")
+
+    let footnoteOnly = LabelFacts(lines: ["Percent Daily Values are based on a 2,000 calorie diet."])
+    check(footnoteOnly.isEmpty, "a 2,000 calorie diet footnote is not a calorie count")
+    check(LabelFacts(lines: ["Table 4", "Thank you"]).isEmpty, "unrelated text has no facts")
+
+    let guess = DraftItem(food: food("Protein shake", 250, 20, 10, 8), confidence: .medium)
+    let plate = DraftItem(food: food("Rice", 205, 4, 45, 0), confidence: .high)
+    let applied = LabelFacts.apply(front, to: [(guess, true), (plate, false)])
+    check(applied[0].food.base.protein == 30 && applied[0].food.base.calories == 150, "label numbers replace the packaged item's guess")
+    check(applied[0].food.base.carbs == 10, "numbers the label doesn't state keep the estimate")
+    check(applied[0].confidence == .high, "a read label is high confidence")
+    check(applied[1] == plate, "other foods are untouched")
+    check(LabelFacts.apply(front, to: [(guess, false), (plate, false)]) == [guess, plate], "with several foods and no packaged one, nothing is overridden")
+    check(LabelFacts.apply(front, to: [(guess, false)])[0].food.base.protein == 30, "a lone item takes the label")
 }
 
 MainActor.assumeIsolated { run() }

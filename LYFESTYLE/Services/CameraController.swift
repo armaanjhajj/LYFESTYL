@@ -5,7 +5,7 @@
 //  The app's own camera. Snapping doesn't run a photo capture (which waits on
 //  exposure, focus and processing); it takes the very next frame from the live
 //  video feed, the way Snapchat does, so the shutter feels instant. The frame
-//  is downscaled to what the model needs and kept in memory only. Nothing is
+//  is capped at 2560 px and kept in memory only. Nothing is
 //  ever written to disk or the photo library.
 //
 
@@ -86,9 +86,9 @@ nonisolated final class CameraPipeline: NSObject, @unchecked Sendable, AVCapture
     /// Continuations waiting on the next frame, keyed so a timeout can find its own.
     private let pending = Mutex<[UUID: CheckedContinuation<CGImage?, Never>]>([:])
 
-    /// Longest edge handed to the model. Plenty to tell rice from quinoa, small
-    /// enough to keep memory and latency down.
-    private static let maxDimension: CGFloat = 1280
+    /// Longest edge kept. Enough for small label print to be read, still
+    /// only a few megabytes held for a few seconds.
+    private static let maxDimension: CGFloat = 2560
 
     func start() async -> Bool {
         await withCheckedContinuation { continuation in
@@ -158,7 +158,8 @@ nonisolated final class CameraPipeline: NSObject, @unchecked Sendable, AVCapture
 
         session.beginConfiguration()
         defer { session.commitConfiguration() }
-        session.sessionPreset = .hd1920x1080
+        // 4K frames so nutrition labels are legible; 1080p where 4K isn't offered.
+        session.sessionPreset = session.canSetSessionPreset(.hd4K3840x2160) ? .hd4K3840x2160 : .hd1920x1080
 
         guard session.canAddInput(input) else { return false }
         session.addInput(input)

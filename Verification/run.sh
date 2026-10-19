@@ -13,6 +13,7 @@ xcrun swiftc -swift-version 6 -default-isolation MainActor -O \
   "$APP/Models/Goals.swift" \
   "$APP/Models/MealEntry.swift" \
   "$APP/Models/CommonFoods.swift" \
+  "$APP/Models/LabelFacts.swift" \
   "$APP/Services/HabitEngine.swift" \
   "$APP/Services/MealExport.swift" \
   "$ROOT/Verification/main.swift" \

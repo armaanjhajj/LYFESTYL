@@ -4,8 +4,9 @@
 //
 //  The guided-generation schema. Foundation Models fills these structs directly,
 //  no JSON in between. Property order is generation order, so each food is
-//  named, then sized, then counted: the portion is decided before the numbers
-//  that depend on it.
+//  first marked packaged or not (which decides how it should be named), then
+//  named, sized, and counted: the portion is decided before the numbers that
+//  depend on it.
 //
 
 import Foundation
@@ -19,10 +20,13 @@ nonisolated struct FoodScan {
 
 @Generable
 nonisolated struct ScannedFood {
-    @Guide(description: "Short everyday name, like 'Grilled chicken breast' or 'Iced latte'")
+    @Guide(description: "true only for a packaged or branded product whose packaging is visible")
+    var isPackaged: Bool
+
+    @Guide(description: "For a packaged product, the brand and product exactly as printed. Otherwise a short everyday name, like 'Grilled chicken breast'.")
     var name: String
 
-    @Guide(description: "The amount in everyday units, like '1 cup', '6 oz', '2 slices', '1 medium'")
+    @Guide(description: "The amount in everyday units, like '1 bottle', '1 cup', '6 oz', '2 slices'")
     var portion: String
 
     @Guide(description: "Kilocalories for that whole amount", .range(0...3000))

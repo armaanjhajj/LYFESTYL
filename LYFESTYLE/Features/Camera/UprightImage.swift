@@ -9,7 +9,7 @@
 import UIKit
 
 enum UprightImage {
-    static let maxDimension: CGFloat = 1280
+    static let maxDimension: CGFloat = 2560
 
     static func make(from data: Data) -> CGImage? {
         guard let image = UIImage(data: data) else { return nil }
