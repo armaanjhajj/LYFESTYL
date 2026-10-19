@@ -4,7 +4,7 @@
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${TMPDIR:-/tmp}/lyfestyl-verify"
-APP="$ROOT/LYFESTYLE"
+APP="$ROOT/LYFESTYL"
 xcrun swiftc -swift-version 6 -default-isolation MainActor -O \
   "$APP/DesignSystem/SolarizedPalette.swift" \
   "$APP/DesignSystem/Macro.swift" \

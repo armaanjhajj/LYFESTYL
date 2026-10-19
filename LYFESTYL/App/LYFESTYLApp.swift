@@ -1,5 +1,5 @@
 //
-//  LYFESTYLEApp.swift
+//  LYFESTYLApp.swift
 //  LYFESTYL
 //
 //  App entry. Builds the shared services, the SwiftData container mirrored to
@@ -10,7 +10,7 @@ import SwiftData
 import SwiftUI
 
 @main
-struct LYFESTYLEApp: App {
+struct LYFESTYLApp: App {
     @State private var analyzer = FoodAnalyzer()
     @State private var camera = CameraController()
     @State private var goals = GoalStore()
@@ -33,7 +33,7 @@ struct LYFESTYLEApp: App {
         .modelContainer(container)
     }
 
-    static let cloudContainerID = "iCloud.Moments.LYFESTYLE"
+    static let cloudContainerID = "iCloud.Moments.LYFESTYL"
 
     /// CloudKit-mirrored store. If CloudKit can't be set up (no entitlement in a
     /// local build), fall back to a local-only store rather than refusing to run;

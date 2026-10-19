@@ -14,7 +14,7 @@ LYFESTYL is a free, native iOS calorie tracker that runs entirely on device. The
 
 6. **Color Scheme only**, defined once in `SolarizedPalette.swift` and referenced everywhere. No raw system colors.
 
-7. **SF Pro only** (not Rounded, not Mono). Titles and headers and the logo are ALL CAPS black weight (`sectionHeader()`, `NavHeaderTitle`, `capsNavigationTitle`).
+7. **SF Pro only** (not Rounded, not Mono). Titles and headers are ALL CAPS black weight; the logo is the app icon (`sectionHeader()`, `NavHeaderTitle`, `capsNavigationTitle`).
 
 8. **Native-first dependencies.** Target iOS 27, Swift 6, `@Observable`, async/await. No third-party packages unless truly necessary.
 

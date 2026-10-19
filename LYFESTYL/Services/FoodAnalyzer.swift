@@ -38,7 +38,7 @@ final class FoodAnalyzer {
     private(set) var status: Status = .unavailable("Checking on-device AI…")
 
     @ObservationIgnored private let model = SystemLanguageModel.default
-    @ObservationIgnored private let log = Logger(subsystem: "Moments.LYFESTYLE", category: "FoodAnalyzer")
+    @ObservationIgnored private let log = Logger(subsystem: "Moments.LYFESTYL", category: "FoodAnalyzer")
     @ObservationIgnored private var warmSession: LanguageModelSession?
 
     private static let instructions = """
@@ -134,7 +134,7 @@ final class FoodAnalyzer {
 
     /// A readable message for any generation failure.
     static func message(for error: any Error) -> String {
-        Logger(subsystem: "Moments.LYFESTYLE", category: "FoodAnalyzer")
+        Logger(subsystem: "Moments.LYFESTYL", category: "FoodAnalyzer")
             .error("Generation failed: \(String(describing: error), privacy: .public)")
         if let error = error as? LanguageModelError {
             switch error {
