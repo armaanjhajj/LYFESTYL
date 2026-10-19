@@ -37,9 +37,9 @@ struct DashboardView: View {
         NavigationStack {
             List {
                 Section {
-                    DaySummary(nutrition: today, goals: goals)
-                } header: {
-                    Text(Date.now.formatted(.dateTime.weekday(.wide).month().day())).sectionHeader()
+                    NutritionSummary(nutrition: today, caption: "OF \(Formatting.calories(goals.calories)) CAL")
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0))
                 }
 
                 Section {
@@ -50,7 +50,7 @@ struct DashboardView: View {
                         MealRows(meals: todayMeals, editing: $editing)
                     }
                 } header: {
-                    Text("MEALS").sectionHeader()
+                    Text("TODAY").sectionHeader()
                 }
 
                 Section {
@@ -83,6 +83,8 @@ struct DashboardView: View {
             }
             .scrollContentBackground(.hidden)
             .background(.appBackground)
+            .contentMargins(.top, 0, for: .scrollContent)
+            .listSectionSpacing(.compact)
             .navigationDestination(for: Date.self) { DayDetailView(day: $0) }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { NavHeaderTitle("Dashboard") }
@@ -119,7 +121,12 @@ struct DayDetailView: View {
     var body: some View {
         List {
             Section {
-                DaySummary(nutrition: meals.map(\.nutrition).total, goals: goalStore.goals)
+                NutritionSummary(
+                    nutrition: meals.map(\.nutrition).total,
+                    caption: "OF \(Formatting.calories(goalStore.goals.calories)) CAL"
+                )
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0))
             }
             Section {
                 if meals.isEmpty {
@@ -133,98 +140,14 @@ struct DayDetailView: View {
         }
         .scrollContentBackground(.hidden)
         .background(.appBackground)
+        .contentMargins(.top, 0, for: .scrollContent)
+        .listSectionSpacing(.compact)
         .capsNavigationTitle(Formatting.relativeDay(day))
         .mealEditor(item: $editing)
     }
 }
 
 // MARK: - Pieces
-
-/// The calorie ring beside three macro bars.
-struct DaySummary: View {
-    let nutrition: Nutrition
-    let goals: Goals
-
-    var body: some View {
-        HStack(spacing: 20) {
-            CalorieRing(eaten: nutrition.calories, goal: goals.calories)
-                .frame(width: 128, height: 128)
-            VStack(spacing: 14) {
-                ForEach([Macro.protein, .carbs, .fat]) { macro in
-                    MacroBar(macro: macro, value: nutrition[macro], goal: goals[macro])
-                }
-            }
-        }
-        .padding(.vertical, 6)
-    }
-}
-
-private struct CalorieRing: View {
-    let eaten: Double
-    let goal: Double
-
-    private var left: Double { goal - eaten }
-
-    var body: some View {
-        ZStack {
-            Chart {
-                if eaten > goal {
-                    SectorMark(angle: .value("Eaten", eaten), innerRadius: .ratio(0.8))
-                        .foregroundStyle(Color.appDestructive)
-                } else {
-                    SectorMark(angle: .value("Eaten", max(eaten, 0.0001)), innerRadius: .ratio(0.8), angularInset: eaten > 0 ? 1.5 : 0)
-                        .cornerRadius(4)
-                        .foregroundStyle(Macro.calories.accent)
-                    SectorMark(angle: .value("Left", max(left, 0.0001)), innerRadius: .ratio(0.8), angularInset: eaten > 0 ? 1.5 : 0)
-                        .cornerRadius(4)
-                        .foregroundStyle(Color.appSurface)
-                }
-            }
-            .chartLegend(.hidden)
-
-            VStack(spacing: 0) {
-                Text(Formatting.calories(abs(left)))
-                    .font(.title2.weight(.black))
-                    .foregroundStyle(.appTextEmphasis)
-                    .contentTransition(.numericText())
-                Text(left >= 0 ? "CAL LEFT" : "CAL OVER")
-                    .font(.caption2.weight(.black))
-                    .tracking(0.5)
-                    .foregroundStyle(left >= 0 ? .appTextMuted : .appDestructive)
-            }
-            .monospacedDigit()
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(Formatting.calories(eaten)) of \(Formatting.calories(goal)) calories")
-        .accessibilityValue(left >= 0 ? "\(Formatting.calories(left)) left" : "\(Formatting.calories(-left)) over")
-    }
-}
-
-private struct MacroBar: View {
-    let macro: Macro
-    let value: Double
-    let goal: Double
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(macro.label)
-                    .font(.caption.weight(.black))
-                    .tracking(0.5)
-                    .foregroundStyle(.appTextEmphasis)
-                Spacer()
-                Text("\(Formatting.grams(value, includeUnit: false)) / \(Formatting.grams(goal))")
-                    .font(.caption)
-                    .foregroundStyle(.appTextMuted)
-                    .monospacedDigit()
-            }
-            ProgressView(value: goal > 0 ? min(value / goal, 1) : 0)
-                .tint(macro.accent)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(macro.name), \(Formatting.grams(value)) of \(Formatting.grams(goal))")
-    }
-}
 
 /// Meals as rows: tap to edit in the drawer, swipe to delete.
 private struct MealRows: View {
@@ -264,9 +187,7 @@ private struct MealRow: View {
                 Text("\(Formatting.calories(n.calories)) cal")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(.appTextEmphasis)
-                Text(Formatting.macroLine(protein: n.protein, carbs: n.carbs, fat: n.fat))
-                    .font(.caption)
-                    .foregroundStyle(.appTextMuted)
+                MacroLine(protein: n.protein, carbs: n.carbs, fat: n.fat)
             }
             .monospacedDigit()
         }
@@ -293,9 +214,7 @@ private struct DayRow: View {
                 Text("\(Formatting.calories(day.nutrition.calories)) cal")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(day.nutrition.calories > goal * 1.1 ? .appDestructive : .appTextEmphasis)
-                Text(Formatting.macroLine(protein: day.nutrition.protein, carbs: day.nutrition.carbs, fat: day.nutrition.fat))
-                    .font(.caption)
-                    .foregroundStyle(.appTextMuted)
+                MacroLine(protein: day.nutrition.protein, carbs: day.nutrition.carbs, fat: day.nutrition.fat)
             }
             .monospacedDigit()
         }
@@ -366,7 +285,7 @@ private struct WeekChart: View {
                     .font(.title3.weight(.black))
                     .foregroundStyle(.appTextEmphasis)
                     .monospacedDigit()
-                Text("DAILY AVERAGE")
+                Text("AVG")
                     .font(.caption2.weight(.black))
                     .tracking(0.5)
                     .foregroundStyle(.appTextMuted)
@@ -383,11 +302,6 @@ private struct WeekChart: View {
                 RuleMark(y: .value("Goal", goal))
                     .foregroundStyle(Color.appTextMuted)
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                    .annotation(position: .top, alignment: .trailing) {
-                        Text("Goal")
-                            .font(.caption2)
-                            .foregroundStyle(.appTextMuted)
-                    }
             }
             .chartXAxis {
                 AxisMarks(values: .stride(by: .day)) { value in

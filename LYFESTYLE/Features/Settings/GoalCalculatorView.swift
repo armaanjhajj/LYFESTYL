@@ -4,17 +4,19 @@
 //
 //  Suggests daily goals from height, weight, age, sex, activity and aim, using
 //  the Mifflin-St Jeor equation. Apple Health can fill in the body numbers.
-//  Shown from Settings and during onboarding.
 //
 
 import SwiftUI
 
-/// The calculator's form sections, shared by Settings and onboarding.
+/// The calculator's form sections.
 struct GoalCalculatorForm: View {
     @Binding var profile: BodyProfile
 
     @Environment(HealthService.self) private var health
     @State private var filling = false
+    @FocusState private var focused: BodyField?
+
+    private enum BodyField: Hashable { case age, height, weight }
 
     private let usesImperial = Locale.current.measurementSystem == .us
 
@@ -27,26 +29,26 @@ struct GoalCalculatorForm: View {
             .pickerStyle(.segmented)
             .listRowSeparator(.hidden)
 
-            Stepper(value: $profile.age, in: 14...100) {
-                LabeledContent("Age", value: "\(profile.age)")
-            }
+            SliderField(title: "Age", value: age, range: 14...90, unit: "yr", focus: $focused, id: .age)
 
             if usesImperial {
-                LabeledContent("Height") {
-                    HStack(spacing: 0) {
-                        Picker("Feet", selection: feet) {
-                            ForEach(3...7, id: \.self) { Text("\($0) ft").tag($0) }
-                        }
-                        Picker("Inches", selection: inches) {
-                            ForEach(0...11, id: \.self) { Text("\($0) in").tag($0) }
-                        }
+                HStack {
+                    Text("Height")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.appTextEmphasis)
+                    Spacer()
+                    Picker("Feet", selection: feet) {
+                        ForEach(4...7, id: \.self) { Text("\($0) ft").tag($0) }
                     }
-                    .labelsHidden()
+                    Picker("Inches", selection: inches) {
+                        ForEach(0...11, id: \.self) { Text("\($0) in").tag($0) }
+                    }
                 }
-                NumberField(title: "Weight", value: pounds, unit: "lb")
+                .labelsHidden()
+                SliderField(title: "Weight", value: pounds, range: 80...400, unit: "lb", focus: $focused, id: .weight)
             } else {
-                NumberField(title: "Height", value: $profile.heightCm, unit: "cm")
-                NumberField(title: "Weight", value: $profile.weightKg, unit: "kg")
+                SliderField(title: "Height", value: $profile.heightCm, range: 130...215, unit: "cm", focus: $focused, id: .height)
+                SliderField(title: "Weight", value: $profile.weightKg, range: 35...180, unit: "kg", focus: $focused, id: .weight)
             }
 
             if health.isAvailable {
@@ -65,58 +67,49 @@ struct GoalCalculatorForm: View {
                 }
                 .disabled(filling)
             }
-        } header: {
-            Text("ABOUT YOU").sectionHeader()
         }
 
         Section {
             Picker("Activity", selection: $profile.activity) {
-                ForEach(BodyProfile.Activity.allCases, id: \.self) { activity in
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(activity.label)
-                        Text(activity.detail)
-                            .font(.caption)
-                            .foregroundStyle(.appTextMuted)
-                    }
-                    .tag(activity)
-                }
+                ForEach(BodyProfile.Activity.allCases, id: \.self) { Text($0.label).tag($0) }
             }
-            .pickerStyle(.inline)
-            .labelsHidden()
-        } header: {
-            Text("ACTIVITY").sectionHeader()
-        }
-
-        Section {
+            .pickerStyle(.menu)
             Picker("Goal", selection: $profile.aim) {
                 ForEach(BodyProfile.Aim.allCases, id: \.self) { Text($0.label).tag($0) }
             }
             .pickerStyle(.segmented)
             .listRowSeparator(.hidden)
-        } header: {
-            Text("GOAL").sectionHeader()
         }
 
         Section {
             let goals = profile.suggestedGoals
-            ForEach(Macro.allCases) { macro in
-                LabeledContent {
-                    Text(Formatting.value(goals[macro], for: macro))
-                        .monospacedDigit()
+            VStack(spacing: 10) {
+                VStack(spacing: 0) {
+                    Text(Formatting.calories(goals.calories))
+                        .font(.system(size: 48, weight: .black))
                         .foregroundStyle(.appTextEmphasis)
-                } label: {
-                    Label {
-                        Text(macro.name)
-                    } icon: {
-                        Image(systemName: macro.symbol).foregroundStyle(macro.accent)
-                    }
+                        .contentTransition(.numericText(value: goals.calories))
+                    Text("CAL A DAY").sectionHeader(color: .appTextMuted)
                 }
+                MacroLine(protein: goals.protein, carbs: goals.carbs, fat: goals.fat)
             }
-        } header: {
-            Text("SUGGESTED DAILY GOALS").sectionHeader()
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .animation(.snappy, value: goals)
         } footer: {
             Text("A starting point, not medical advice.")
+                .frame(maxWidth: .infinity)
         }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { focused = nil }
+            }
+        }
+    }
+
+    private var age: Binding<Double> {
+        Binding(get: { Double(profile.age) }, set: { profile.age = Int($0.rounded()) })
     }
 
     // MARK: - Imperial bindings over canonical units
@@ -145,24 +138,6 @@ struct GoalCalculatorForm: View {
     }
 }
 
-private struct NumberField: View {
-    let title: String
-    @Binding var value: Double
-    let unit: String
-
-    var body: some View {
-        LabeledContent(title) {
-            HStack(spacing: 4) {
-                TextField(title, value: $value, format: .number.precision(.fractionLength(0...1)))
-                    .keyboardType(.decimalPad)
-                    .multilineTextAlignment(.trailing)
-                    .monospacedDigit()
-                Text(unit).foregroundStyle(.appTextMuted)
-            }
-        }
-    }
-}
-
 /// The calculator as a Settings screen.
 struct GoalCalculatorView: View {
     @Environment(GoalStore.self) private var goalStore
@@ -175,7 +150,9 @@ struct GoalCalculatorView: View {
         }
         .scrollContentBackground(.hidden)
         .background(.appBackground)
-        .capsNavigationTitle("Calculate Goals")
+        .contentMargins(.top, 4, for: .scrollContent)
+        .scrollDismissesKeyboard(.interactively)
+        .capsNavigationTitle("Your Goals")
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Use", systemImage: "checkmark", role: .confirm) {

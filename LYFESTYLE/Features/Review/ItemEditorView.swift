@@ -127,7 +127,18 @@ struct FoodFields: View {
 
         Section {
             ForEach(Macro.allCases) { macro in
-                NutrientEditor(macro: macro, value: binding(for: macro), focused: $focused)
+                SliderField(
+                    title: macro.name,
+                    symbol: macro.symbol,
+                    tint: macro.accent,
+                    value: binding(for: macro),
+                    range: 0...Self.upperBound(macro, food.base[macro]),
+                    step: macro == .calories ? 5 : 1,
+                    unit: macro.unit,
+                    grows: true,
+                    focus: $focused,
+                    id: macro
+                )
             }
         } header: {
             Text(food.servings == 1 ? "NUTRITION" : "PER SERVING").sectionHeader()
@@ -145,6 +156,19 @@ struct FoodFields: View {
         }
     }
 
+    /// A slider range that suits the food: at least a typical maximum, and
+    /// room to double what the estimate says.
+    private static func upperBound(_ macro: Macro, _ value: Double) -> Double {
+        let floor: Double = switch macro {
+        case .calories: 1000
+        case .protein:  100
+        case .carbs:    150
+        case .fat:      80
+        }
+        let round: Double = macro == .calories ? 100 : 10
+        return max(floor, (value * 2 / round).rounded(.up) * round)
+    }
+
     private func binding(for macro: Macro) -> Binding<Double> {
         Binding(
             get: { food.base[macro] },
@@ -158,78 +182,6 @@ struct FoodFields: View {
                 }
             }
         )
-    }
-}
-
-/// One number: its value in a tinted pill you can tap to type, and a slider
-/// in the macro's color underneath.
-private struct NutrientEditor: View {
-    let macro: Macro
-    @Binding var value: Double
-    var focused: FocusState<Macro?>.Binding
-
-    /// Fixed while editing so the slider doesn't rescale under your thumb.
-    @State private var upper: Double = 100
-
-    private var step: Double { macro == .calories ? 5 : 1 }
-    private var isFocused: Bool { focused.wrappedValue == macro }
-
-    var body: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 10) {
-                Image(systemName: macro.symbol)
-                    .foregroundStyle(macro.accent)
-                    .frame(width: 24)
-                Text(macro.name)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.appTextEmphasis)
-                Spacer()
-                HStack(alignment: .firstTextBaseline, spacing: 3) {
-                    TextField("0", value: $value, format: .number.precision(.fractionLength(0...1)))
-                        .keyboardType(.decimalPad)
-                        .multilineTextAlignment(.trailing)
-                        .font(.title3.weight(.bold))
-                        .monospacedDigit()
-                        .foregroundStyle(.appTextEmphasis)
-                        .frame(minWidth: 36)
-                        .fixedSize()
-                        .focused(focused, equals: macro)
-                    Text(macro.unit)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.appTextMuted)
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 7)
-                .background(macro.accent.opacity(isFocused ? 0.22 : 0.12), in: Capsule())
-                .overlay(Capsule().strokeBorder(macro.accent.opacity(isFocused ? 0.7 : 0), lineWidth: 1.5))
-                .contentShape(Capsule())
-                .onTapGesture { focused.wrappedValue = macro }
-                .animation(.snappy, value: isFocused)
-            }
-            Slider(
-                value: Binding(get: { min(value, upper) }, set: { value = ($0 / step).rounded() * step }),
-                in: 0...upper
-            )
-            .tint(macro.accent)
-            .accessibilityLabel(macro.name)
-        }
-        .padding(.vertical, 6)
-        .sensoryFeedback(.selection, trigger: Int(value / (step * 5)))
-        .onAppear { upper = Self.upperBound(macro, value) }
-        .onChange(of: value) { _, new in
-            if new > upper { upper = Self.upperBound(macro, new) }
-        }
-    }
-
-    private static func upperBound(_ macro: Macro, _ value: Double) -> Double {
-        let floor: Double = switch macro {
-        case .calories: 1000
-        case .protein:  100
-        case .carbs:    150
-        case .fat:      80
-        }
-        let round: Double = macro == .calories ? 100 : 10
-        return max(floor, (value * 2 / round).rounded(.up) * round)
     }
 }
 

@@ -350,6 +350,7 @@ struct FoodRow<Badge: View>: View {
 /// daily goals.
 struct NutritionSummary: View {
     let nutrition: Nutrition
+    var caption = "CALORIES"
     @Environment(GoalStore.self) private var goalStore
 
     var body: some View {
@@ -360,7 +361,7 @@ struct NutritionSummary: View {
                     .font(.system(size: 60, weight: .black))
                     .foregroundStyle(.appTextEmphasis)
                     .contentTransition(.numericText(value: nutrition.calories))
-                Text("CALORIES").sectionHeader(color: .appTextMuted)
+                Text(caption).sectionHeader(color: .appTextMuted)
             }
             HStack(spacing: 0) {
                 RingTile(

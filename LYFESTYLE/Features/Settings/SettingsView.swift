@@ -3,7 +3,8 @@
 //  LYFESTYL
 //
 //  Top left of the camera. The iCloud account that owns the data, daily goals,
-//  Apple Health, the on-device model's status, and your data.
+//  Apple Health, and your data. The on-device model only shows up here when
+//  something is wrong with it.
 //
 
 import CloudKit
@@ -22,6 +23,7 @@ struct SettingsView: View {
     @State private var iCloud: CKAccountStatus?
     @State private var healthDenied = false
     @State private var confirmDeleteAll = false
+    @FocusState private var focused: Macro?
 
     var body: some View {
         @Bindable var goalStore = goalStore
@@ -32,17 +34,23 @@ struct SettingsView: View {
                 accountSection
                 goalsSection(goals: $goalStore.goals)
                 if health.isAvailable { healthSection(enabled: $health.isWritingEnabled) }
-                aiSection
+                if !analyzer.status.canReadPhotos { aiSection }
                 dataSection
                 aboutSection
             }
             .scrollContentBackground(.hidden)
             .background(.appBackground)
+            .contentMargins(.top, 4, for: .scrollContent)
+            .scrollDismissesKeyboard(.interactively)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { NavHeaderTitle("Account") }
                     .sharedBackgroundVisibility(.hidden)
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(role: .close) { dismiss() }
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { focused = nil }
                 }
             }
             .task { await refreshAccount() }
@@ -51,7 +59,7 @@ struct SettingsView: View {
                     MealLog(context: context, health: health).deleteAll()
                 }
             } message: {
-                Text("This removes \(meals.count == 1 ? "1 meal" : "\(meals.count) meals") from iCloud on all your devices, and from Apple Health. It can't be undone.")
+                Text("Removes them from iCloud and Apple Health. This can't be undone.")
             }
         }
         .presentationBackground(.appBackground)
@@ -70,16 +78,14 @@ struct SettingsView: View {
                     Text(accountTitle)
                         .font(.body.weight(.semibold))
                         .foregroundStyle(.appTextEmphasis)
-                    if !accountDetail.isEmpty {
-                        Text(accountDetail)
+                    if iCloud != nil, iCloud != .available {
+                        Text("Saved on this iPhone until you sign in.")
                             .font(.subheadline)
                             .foregroundStyle(.appTextMuted)
                     }
                 }
             }
             .accessibilityElement(children: .combine)
-        } header: {
-            Text("ICLOUD").sectionHeader()
         }
     }
 
@@ -90,38 +96,29 @@ struct SettingsView: View {
         case .restricted:             "iCloud is restricted"
         case .temporarilyUnavailable: "iCloud is unavailable"
         case nil:                     "Checking iCloud…"
-        default:                      "iCloud status unknown"
-        }
-    }
-
-    private var accountDetail: String {
-        switch iCloud {
-        case .available: "Private to your iCloud account."
-        case nil:        ""
-        default:         "Saved on this iPhone until you sign in."
+        default:                      "iCloud"
         }
     }
 
     private func goalsSection(goals: Binding<Goals>) -> some View {
         Section {
             ForEach(Macro.allCases) { macro in
-                Stepper(value: goals[dynamicMember: \.[macro]].clamped(to: Goals.range(for: macro)), in: Goals.range(for: macro), step: Goals.step(for: macro)) {
-                    HStack(spacing: 10) {
-                        Image(systemName: macro.symbol)
-                            .foregroundStyle(macro.accent)
-                            .frame(width: 24)
-                        Text(macro.name)
-                        Spacer(minLength: 4)
-                        Text(Formatting.value(goals.wrappedValue[macro], for: macro))
-                            .monospacedDigit()
-                            .foregroundStyle(.appTextEmphasis)
-                    }
-                }
+                SliderField(
+                    title: macro.name,
+                    symbol: macro.symbol,
+                    tint: macro.accent,
+                    value: goals[dynamicMember: \.[macro]],
+                    range: Goals.range(for: macro),
+                    step: Goals.step(for: macro),
+                    unit: macro.unit,
+                    focus: $focused,
+                    id: macro
+                )
             }
             NavigationLink {
                 GoalCalculatorView()
             } label: {
-                Label("Calculate My Goals", systemImage: "function")
+                Label("Calculate for Me", systemImage: "function")
             }
         } header: {
             Text("DAILY GOALS").sectionHeader()
@@ -144,13 +141,11 @@ struct SettingsView: View {
                     }
                 }
             )) {
-                Label("Save Meals to Health", systemImage: "heart.fill")
+                Label("Save to Apple Health", systemImage: "heart.fill")
             }
-        } header: {
-            Text("APPLE HEALTH").sectionHeader()
         } footer: {
             if healthDenied {
-                Text("Allow access in the Health app under Data Access & Devices.")
+                Text("Allow access in the Health app.")
             }
         }
     }
@@ -158,38 +153,19 @@ struct SettingsView: View {
     private var aiSection: some View {
         Section {
             HStack(spacing: 12) {
-                IconChip(symbol: "apple.intelligence", tint: analyzer.status.canReadPhotos ? .appAccent : .appWarning)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(aiTitle)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.appTextEmphasis)
-                    Text(aiDetail)
-                        .font(.subheadline)
-                        .foregroundStyle(.appTextMuted)
-                }
+                IconChip(symbol: "apple.intelligence", tint: .appWarning)
+                Text(aiMessage)
+                    .font(.subheadline)
+                    .foregroundStyle(.appText)
             }
-            .accessibilityElement(children: .combine)
-        } header: {
-            Text("ON-DEVICE AI").sectionHeader()
         }
     }
 
-    private var aiTitle: String {
+    private var aiMessage: String {
         switch analyzer.status {
-        case .ready:       "Ready"
-        case .textOnly:    "Typed foods only"
-        case .unavailable: "Unavailable"
-        }
-    }
-
-    private var aiDetail: String {
-        switch analyzer.status {
-        case .ready:
-            "Photos stay on this iPhone and are never saved."
-        case .textOnly:
-            "Photos can't be read on this iPhone."
-        case .unavailable(let message):
-            message
+        case .ready:                    ""
+        case .textOnly:                 "Photos can't be read on this iPhone. Search still works."
+        case .unavailable(let message): message
         }
     }
 
@@ -199,7 +175,7 @@ struct SettingsView: View {
                 item: MealExport(rows: meals.map { ($0.loggedAt, $0.items) }),
                 preview: SharePreview("LYFESTYL Meals.csv")
             ) {
-                Label("Export Meals as CSV", systemImage: "square.and.arrow.up")
+                Label("Export Meals", systemImage: "square.and.arrow.up")
             }
             .disabled(meals.isEmpty)
 
@@ -207,18 +183,17 @@ struct SettingsView: View {
                 confirmDeleteAll = true
             } label: {
                 Label("Delete All Meals", systemImage: "trash")
+                    .foregroundStyle(meals.isEmpty ? Color.appTextMuted : Color.appDestructive)
             }
             .disabled(meals.isEmpty)
-        } header: {
-            Text("YOUR DATA").sectionHeader()
         }
     }
 
     private var aboutSection: some View {
         Section {
-            VStack(spacing: 10) {
-                LyfestylLogo(size: 28)
-                Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0")")
+            VStack(spacing: 8) {
+                LyfestylLogo(size: 26)
+                Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0")
                     .font(.footnote)
                     .foregroundStyle(.appTextMuted)
             }
@@ -230,15 +205,5 @@ struct SettingsView: View {
 
     private func refreshAccount() async {
         iCloud = try? await CKContainer(identifier: LYFESTYLEApp.cloudContainerID).accountStatus()
-    }
-}
-
-private extension Binding where Value == Double {
-    /// Keeps a Stepper usable if a synced goal arrives outside the range.
-    func clamped(to range: ClosedRange<Double>) -> Binding<Double> {
-        Binding(
-            get: { Swift.min(Swift.max(wrappedValue, range.lowerBound), range.upperBound) },
-            set: { wrappedValue = $0 }
-        )
     }
 }

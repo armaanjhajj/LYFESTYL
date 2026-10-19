@@ -174,3 +174,84 @@ struct MacroLine: View {
         }
     }
 }
+
+// MARK: - Slider field
+
+/// A value in a tinted pill you can tap to type, with a slider in the same
+/// tint underneath. Used for every adjustable number in the app.
+struct SliderField<Focus: Hashable>: View {
+    let title: String
+    var symbol: String? = nil
+    var tint: Color = .appAccent
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    var step: Double = 1
+    var unit: String = ""
+    /// When typing past the top of the range, widen the slider to fit.
+    var grows: Bool = false
+    let focus: FocusState<Focus?>.Binding
+    let id: Focus
+
+    @State private var upper: Double?
+
+    private var isFocused: Bool { focus.wrappedValue == id }
+    private var top: Double { upper ?? range.upperBound }
+
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 10) {
+                if let symbol {
+                    Image(systemName: symbol)
+                        .foregroundStyle(tint)
+                        .frame(width: 24)
+                }
+                Text(title)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.appTextEmphasis)
+                Spacer()
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    TextField("0", value: $value, format: .number.precision(.fractionLength(0...1)).grouping(.never))
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .font(.title3.weight(.bold))
+                        .monospacedDigit()
+                        .foregroundStyle(.appTextEmphasis)
+                        .frame(minWidth: 36)
+                        .fixedSize()
+                        .focused(focus, equals: id)
+                    if !unit.isEmpty {
+                        Text(unit)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.appTextMuted)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(tint.opacity(isFocused ? 0.22 : 0.12), in: Capsule())
+                .overlay(Capsule().strokeBorder(tint.opacity(isFocused ? 0.7 : 0), lineWidth: 1.5))
+                .contentShape(Capsule())
+                .onTapGesture { focus.wrappedValue = id }
+                .animation(.snappy, value: isFocused)
+            }
+            Slider(
+                value: Binding(
+                    get: { min(max(value, range.lowerBound), top) },
+                    set: { value = ($0 / step).rounded() * step }
+                ),
+                in: range.lowerBound...top
+            )
+            .tint(tint)
+            .accessibilityLabel(title)
+        }
+        .padding(.vertical, 6)
+        .sensoryFeedback(.selection, trigger: Int(value / (step * 5)))
+        // The range is fixed once shown, so dragging never rescales the
+        // slider under your thumb.
+        .onAppear { if upper == nil { upper = range.upperBound } }
+        .onChange(of: value) { _, new in
+            guard grows, new > top else { return }
+            let round = pow(10, max(1, (log10(new)).rounded(.down)))
+            upper = (new * 1.5 / round).rounded(.up) * round
+        }
+    }
+}
