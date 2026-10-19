@@ -26,9 +26,9 @@ nonisolated enum Formatting {
         return includeUnit ? "\(number) g" : number
     }
 
-    /// A macro value with its own unit: "1,240 kcal" or "92 g".
+    /// A macro value with its own unit: "1,240 cal" or "92 g".
     static func value(_ value: Double, for macro: Macro) -> String {
-        macro == .calories ? "\(calories(value)) kcal" : grams(value)
+        macro == .calories ? "\(calories(value)) cal" : grams(value)
     }
 
     /// "1×", "1.5×", "0.25×" for a servings multiplier.

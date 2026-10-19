@@ -187,7 +187,7 @@ private struct CalorieRing: View {
                     .font(.title2.weight(.black))
                     .foregroundStyle(.appTextEmphasis)
                     .contentTransition(.numericText())
-                Text(left >= 0 ? "KCAL LEFT" : "KCAL OVER")
+                Text(left >= 0 ? "CAL LEFT" : "CAL OVER")
                     .font(.caption2.weight(.black))
                     .tracking(0.5)
                     .foregroundStyle(left >= 0 ? .appTextMuted : .appDestructive)
@@ -261,7 +261,7 @@ private struct MealRow: View {
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 2) {
-                Text("\(Formatting.calories(n.calories)) kcal")
+                Text("\(Formatting.calories(n.calories)) cal")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(.appTextEmphasis)
                 Text(Formatting.macroLine(protein: n.protein, carbs: n.carbs, fat: n.fat))
@@ -290,7 +290,7 @@ private struct DayRow: View {
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
-                Text("\(Formatting.calories(day.nutrition.calories)) kcal")
+                Text("\(Formatting.calories(day.nutrition.calories)) cal")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(day.nutrition.calories > goal * 1.1 ? .appDestructive : .appTextEmphasis)
                 Text(Formatting.macroLine(protein: day.nutrition.protein, carbs: day.nutrition.carbs, fat: day.nutrition.fat))

@@ -33,7 +33,7 @@ nonisolated enum Macro: String, CaseIterable, Identifiable, Hashable, Sendable {
         }
     }
 
-    var unit: String { self == .calories ? "kcal" : "g" }
+    var unit: String { self == .calories ? "cal" : "g" }
 
     var symbol: String {
         switch self {

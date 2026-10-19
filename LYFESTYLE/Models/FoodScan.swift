@@ -27,7 +27,7 @@ nonisolated struct ScannedFood {
     @Guide(description: "For a packaged product, its brand and product line as printed, at most 5 words. Empty otherwise. Never shown to the person.")
     var product: String
 
-    @Guide(description: "What a person would call it, 1 to 3 words, no brand, no numbers, like 'Protein shake', 'Iced coffee', 'Chicken salad'")
+    @Guide(description: "The kind of food or drink in plain words, 1 to 3 words. Never a brand and never just a flavor: a chocolate protein shake is 'Protein shake'. Like 'Protein shake', 'Iced coffee', 'Granola bar', 'Chicken salad'.")
     var name: String
 
     @Guide(description: "The amount in everyday units, like '1 bottle', '1 cup', '6 oz', '2 slices'")

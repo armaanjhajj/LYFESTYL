@@ -127,7 +127,7 @@ nonisolated enum HabitEngine {
             habits.append(Habit(
                 kind: .highCalories, macro: .calories,
                 title: "Calories are over goal",
-                detail: "Over goal \(of(highCalories)). Avg \(Formatting.calories(average(.calories))) kcal."
+                detail: "Over goal \(of(highCalories)). Avg \(Formatting.calories(average(.calories))) cal."
             ))
         } else if lowCalories >= threshold {
             habits.append(Habit(

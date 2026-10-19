@@ -142,6 +142,13 @@ func food(_ name: String, _ kcal: Double, _ p: Double, _ c: Double, _ f: Double,
     let banana = DraftItem(food: food("Banana", 105, 1, 27, 0), confidence: .high)
     check(LabelFacts.removeLabelWords(from: [C(item: bottle, isPackaged: true), C(item: banana, isPackaged: false)], labelLines: frontLines).count == 2, "a real second food stays")
 
+    let sideways = LabelFacts(lines: ["farlife", "nutrition plan", "OO HIGH", "SPROTEIN", "V 150 CALORIES", "-(340 mal)", "30", "PROTEIN", "HIGH QUALITY"])
+    check(sideways.protein == 30 && sideways.calories == 150, "a sideways read of 30 / PROTEIN still finds 30 g, got \(String(describing: sideways.protein))")
+    let renamed = LabelFacts.nameKinds([LabelFacts.Candidate(item: DraftItem(food: food("Chocolate", 150, 30, 4, 3)), isPackaged: true)], labelLines: ["fairlife", "30g HIGH QUALITY PROTEIN", "CHOCOLATE", "NUTRITION SHAKE"])
+    check(renamed.first?.item.food.name == "Protein shake", "a product named as its flavor is renamed by its label, got \(renamed.first?.item.food.name ?? "-")")
+    let keep = LabelFacts.nameKinds([LabelFacts.Candidate(item: DraftItem(food: food("Iced coffee", 120, 1, 20, 3)), isPackaged: true)], labelLines: ["DUNKIN"])
+    check(keep.first?.item.food.name == "Iced coffee", "a real name is never replaced")
+
     let footnoteOnly = LabelFacts(lines: ["Percent Daily Values are based on a 2,000 calorie diet."])
     check(footnoteOnly.isEmpty, "a 2,000 calorie diet footnote is not a calorie count")
     check(LabelFacts(lines: ["Table 4", "Thank you"]).isEmpty, "unrelated text has no facts")

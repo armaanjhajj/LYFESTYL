@@ -58,6 +58,8 @@ nonisolated struct LabelFacts: Equatable, Sendable {
         protein = Self.first(in: text, patterns: [
             #"\b"# + proteinWord + #"\s*[:\-]?\s*(\d{1,3}(?:\.\d)?)"# + grams + ownedByNext,
             #"\b(\d{1,3}(?:\.\d)?)"# + claimGrams + #"\s+"# + filler + proteinWord + #"\b"#,
+            // Read sideways, the "g" often drops off: "30 | PROTEIN".
+            #"(?<![\d.])\b(\d{1,3})\s+"# + proteinWord + #"\b"#,
         ], range: 0...150)
 
         carbs = Self.first(in: text, patterns: [
@@ -138,6 +140,41 @@ nonisolated struct LabelFacts: Equatable, Sendable {
         guard let best = scores.first, best.1 >= 2 else { return nil }
         if scores.count > 1, scores[1].1 == best.1 { return nil }
         return best.0
+    }
+
+    /// Flavors the model sometimes returns as if they were the food.
+    private static let flavors: Set<String> = [
+        "chocolate", "vanilla", "strawberry", "caramel", "mocha", "original", "banana",
+        "cookies and cream", "cookies & cream", "salted caramel", "peanut butter", "mint",
+        "berry", "mixed berry", "unflavored", "plain", "cherry", "lemon", "orange",
+    ]
+
+    /// Product types worth naming a package by, most specific first.
+    private static let kinds: [(needs: [String], name: String)] = [
+        (["protein", "shake"], "Protein shake"), (["protein", "bar"], "Protein bar"),
+        (["protein", "drink"], "Protein drink"), (["energy", "drink"], "Energy drink"),
+        (["smoothie"], "Smoothie"), (["shake"], "Shake"), (["yogurt"], "Yogurt"),
+        (["granola"], "Granola bar"), (["cold", "brew"], "Cold brew"), (["latte"], "Latte"),
+        (["coffee"], "Coffee"), (["tea"], "Tea"), (["juice"], "Juice"), (["soda"], "Soda"),
+        (["sparkling"], "Sparkling water"), (["chips"], "Chips"), (["crackers"], "Crackers"),
+        (["cookies"], "Cookies"), (["cereal"], "Cereal"), (["milk"], "Milk"), (["bar"], "Bar"),
+    ]
+
+    /// Give a packaged item that came back named as a flavor ("Chocolate") the
+    /// name of its product type, read off its own label ("NUTRITION SHAKE" plus
+    /// "PROTEIN" is a protein shake).
+    static func nameKinds(_ candidates: [Candidate], labelLines: [String]) -> [Candidate] {
+        let words = Set(labelLines.joined(separator: " ").lowercased()
+            .split(whereSeparator: { !$0.isLetter }).map(String.init))
+        guard !words.isEmpty else { return candidates }
+        let kind = kinds.first { $0.needs.allSatisfy(words.contains) }?.name
+        return candidates.map { candidate in
+            guard candidate.looksPackaged, let kind,
+                  flavors.contains(candidate.item.food.name.lowercased()) else { return candidate }
+            var renamed = candidate
+            renamed.item.food.name = kind
+            return renamed
+        }
     }
 
     // MARK: - Matching

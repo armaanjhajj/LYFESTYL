@@ -115,7 +115,10 @@ final class FoodAnalyzer {
         let scanned = try FoodScan(final).items.map {
             LabelFacts.Candidate(item: $0.draftItem, isPackaged: $0.isPackaged, product: $0.product)
         }
-        let products = LabelFacts.removeLabelWords(from: scanned, labelLines: label.lines)
+        let products = LabelFacts.nameKinds(
+            LabelFacts.removeLabelWords(from: scanned, labelLines: label.lines),
+            labelLines: label.lines
+        )
         return LabelFacts.apply(label.facts, to: products, labelLines: label.lines)
     }
 

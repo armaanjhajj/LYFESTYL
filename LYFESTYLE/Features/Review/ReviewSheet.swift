@@ -28,6 +28,8 @@ struct ReviewSheet: View {
     let onLog: () -> Void
     let onDelete: () -> Void
     let onDismiss: () -> Void
+    /// Called when the person opens a food or search, which wants full height.
+    var onGoDeeper: () -> Void = {}
 
     @Environment(FoodAnalyzer.self) private var analyzer
     @State private var path: [ReviewRoute] = []
@@ -44,6 +46,9 @@ struct ReviewSheet: View {
                     ToolbarItemGroup(placement: .topBarTrailing) { trailingActions }
                 }
                 .navigationDestination(for: ReviewRoute.self, destination: destination)
+        }
+        .onChange(of: path) { _, path in
+            if !path.isEmpty { onGoDeeper() }
         }
         .tint(.appAccent)
     }
@@ -145,7 +150,7 @@ private struct AnalyzingView: View {
                 NutritionSummary(nutrition: total)
                     .shimmering(foods.isEmpty)
                     .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0))
             }
             Section {
                 ForEach(foods) { food in
@@ -191,7 +196,7 @@ private struct StreamingRow: View {
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 5) {
                 if let calories = food.calories {
-                    Text("\(Formatting.calories(calories)) kcal")
+                    Text("\(Formatting.calories(calories)) cal")
                         .font(.body.weight(.semibold))
                         .foregroundStyle(.appTextEmphasis)
                         .contentTransition(.numericText(value: calories))
@@ -249,7 +254,7 @@ private struct DraftReviewList: View {
             Section {
                 NutritionSummary(nutrition: draft.nutrition)
                     .listRowBackground(Color.clear)
-                    .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 8, trailing: 0))
             }
 
             Section {
@@ -329,7 +334,7 @@ struct FoodRow<Badge: View>: View {
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 3) {
-                Text("\(Formatting.calories(n.calories)) kcal")
+                Text("\(Formatting.calories(n.calories)) cal")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(.appTextEmphasis)
                 MacroLine(protein: n.protein, carbs: n.carbs, fat: n.fat)
@@ -340,61 +345,85 @@ struct FoodRow<Badge: View>: View {
     }
 }
 
-/// The top of the drawer: big calories with how much of the day they are,
-/// and a ring per macro filling toward the daily goal.
+/// The top of the drawer: the calories, centered and big, over four rings:
+/// the share of the day's calories, then protein, carbs and fat against their
+/// daily goals.
 struct NutritionSummary: View {
     let nutrition: Nutrition
     @Environment(GoalStore.self) private var goalStore
 
     var body: some View {
         let goals = goalStore.goals
-        let dayShare = goals.calories > 0 ? nutrition.calories / goals.calories : 0
-        VStack(spacing: 20) {
-            HStack(alignment: .lastTextBaseline) {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(Formatting.calories(nutrition.calories))
-                        .font(.system(size: 56, weight: .black))
-                        .foregroundStyle(.appTextEmphasis)
-                        .contentTransition(.numericText(value: nutrition.calories))
-                    Text("CALORIES").sectionHeader(color: .appTextMuted)
-                }
-                Spacer()
-                Text("\(Formatting.percent(fraction: dayShare)) OF DAY")
-                    .font(.caption.weight(.black))
-                    .tracking(0.5)
-                    .foregroundStyle(.appTextMuted)
-                    .contentTransition(.numericText(value: dayShare))
+        VStack(spacing: 18) {
+            VStack(spacing: 0) {
+                Text(Formatting.calories(nutrition.calories))
+                    .font(.system(size: 60, weight: .black))
+                    .foregroundStyle(.appTextEmphasis)
+                    .contentTransition(.numericText(value: nutrition.calories))
+                Text("CALORIES").sectionHeader(color: .appTextMuted)
             }
             HStack(spacing: 0) {
+                RingTile(
+                    fraction: share(nutrition.calories, goals.calories),
+                    tint: Macro.calories.accent,
+                    value: Formatting.percent(fraction: share(nutrition.calories, goals.calories)),
+                    unit: nil,
+                    label: "DAY"
+                )
                 ForEach([Macro.protein, .carbs, .fat]) { macro in
-                    VStack(spacing: 8) {
-                        ZStack {
-                            ProgressRing(fraction: goals[macro] > 0 ? nutrition[macro] / goals[macro] : 0, tint: macro.accent, lineWidth: 9)
-                            HStack(alignment: .firstTextBaseline, spacing: 1) {
-                                Text(Formatting.grams(nutrition[macro], includeUnit: false))
-                                    .font(.title2.weight(.black))
-                                    .foregroundStyle(.appTextEmphasis)
-                                    .contentTransition(.numericText(value: nutrition[macro]))
-                                Text("g")
-                                    .font(.footnote.weight(.semibold))
-                                    .foregroundStyle(.appTextMuted)
-                            }
-                        }
-                        .frame(width: 78, height: 78)
-                        Text(macro.label)
-                            .font(.caption.weight(.black))
-                            .tracking(0.5)
-                            .foregroundStyle(macro.accent)
-                    }
-                    .frame(maxWidth: .infinity)
+                    RingTile(
+                        fraction: share(nutrition[macro], goals[macro]),
+                        tint: macro.accent,
+                        value: Formatting.grams(nutrition[macro], includeUnit: false),
+                        unit: "g",
+                        label: macro.label
+                    )
                 }
             }
         }
+        .frame(maxWidth: .infinity)
         .monospacedDigit()
-        .padding(.horizontal, 8)
         .animation(.snappy, value: nutrition)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(Formatting.calories(nutrition.calories)) calories, \(Formatting.grams(nutrition.protein)) protein, \(Formatting.grams(nutrition.carbs)) carbs, \(Formatting.grams(nutrition.fat)) fat")
+        .accessibilityLabel("\(Formatting.calories(nutrition.calories)) calories, \(Formatting.percent(fraction: share(nutrition.calories, goals.calories))) of the day, \(Formatting.grams(nutrition.protein)) protein, \(Formatting.grams(nutrition.carbs)) carbs, \(Formatting.grams(nutrition.fat)) fat")
+    }
+
+    private func share(_ value: Double, _ goal: Double) -> Double { goal > 0 ? value / goal : 0 }
+}
+
+private struct RingTile: View {
+    let fraction: Double
+    let tint: Color
+    let value: String
+    let unit: String?
+    let label: String
+
+    var body: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                ProgressRing(fraction: fraction, tint: tint, lineWidth: 7)
+                HStack(alignment: .firstTextBaseline, spacing: 1) {
+                    Text(value)
+                        .font(.headline.weight(.black))
+                        .foregroundStyle(.appTextEmphasis)
+                        .contentTransition(.numericText())
+                    if let unit {
+                        Text(unit)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.appTextMuted)
+                    }
+                }
+                .minimumScaleFactor(0.7)
+                .lineLimit(1)
+                .padding(.horizontal, 8)
+            }
+            .frame(width: 66, height: 66)
+            Text(label)
+                .font(.caption2.weight(.black))
+                .tracking(0.5)
+                .foregroundStyle(tint)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 

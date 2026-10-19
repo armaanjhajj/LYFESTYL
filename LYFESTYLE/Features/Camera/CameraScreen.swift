@@ -218,7 +218,7 @@ struct CameraScreen: View {
             Text(Formatting.calories(abs(left)))
                 .font(.headline.weight(.black))
                 .contentTransition(.numericText())
-            Text(left >= 0 ? "KCAL LEFT" : "KCAL OVER")
+            Text(left >= 0 ? "CAL LEFT" : "CAL OVER")
                 .font(.caption2.weight(.black))
                 .tracking(0.6)
                 .opacity(0.75)
@@ -307,7 +307,7 @@ struct CameraScreen: View {
         MealLog(context: context, health: health).log(foods, at: draft.loggedAt)
         logs += 1
         self.draft = nil
-        showToast("Logged \(Formatting.calories(foods.nutrition.calories)) kcal")
+        showToast("Logged \(Formatting.calories(foods.nutrition.calories)) cal")
     }
 
     /// Drop the draft, and with it the frame.
@@ -345,7 +345,7 @@ struct ReviewDrawer: View {
     @State private var detent: PresentationDetent = .medium
 
     var body: some View {
-        ReviewSheet(draft: draft, onLog: onLog, onDelete: onDelete, onDismiss: onDismiss)
+        ReviewSheet(draft: draft, onLog: onLog, onDelete: onDelete, onDismiss: onDismiss, onGoDeeper: { detent = .large })
             .presentationDetents([.medium, .large], selection: $detent)
             .presentationBackground(.appBackground)
             .presentationBackgroundInteraction(.disabled)

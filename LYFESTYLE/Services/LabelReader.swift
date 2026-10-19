@@ -9,6 +9,7 @@
 //
 
 import CoreGraphics
+import ImageIO
 import Vision
 
 nonisolated enum LabelReader {
@@ -28,17 +29,27 @@ nonisolated enum LabelReader {
         }
     }
 
+    /// Reads the photo upright and turned both ways at once: bottles and cans
+    /// often print the big claim ("PROTEIN") running down the side.
     static func read(_ image: CGImage) async -> Reading {
+        async let upright = lines(in: image, orientation: .up)
+        async let turnedRight = lines(in: image, orientation: .right)
+        async let turnedLeft = lines(in: image, orientation: .left)
+        var seen = Set<String>()
+        let lines = (await upright + turnedRight + turnedLeft).filter { seen.insert($0.lowercased()).inserted }
+        return Reading(lines: lines, facts: LabelFacts(lines: lines))
+    }
+
+    private static func lines(in image: CGImage, orientation: CGImagePropertyOrientation) async -> [String] {
         var request = RecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true
         // Ignore specks of text too small to matter at a glance.
         request.minimumTextHeightFraction = 0.008
-        guard let observations = try? await request.perform(on: image) else { return .empty }
-        let lines = observations
+        guard let observations = try? await request.perform(on: image, orientation: orientation) else { return [] }
+        return observations
             .compactMap { $0.topCandidates(1).first }
             .filter { $0.confidence >= 0.3 }
             .map(\.string)
-        return Reading(lines: lines, facts: LabelFacts(lines: lines))
     }
 }

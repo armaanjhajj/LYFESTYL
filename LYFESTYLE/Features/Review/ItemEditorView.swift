@@ -2,8 +2,9 @@
 //  ItemEditorView.swift
 //  LYFESTYL
 //
-//  Edit one food: fix the name, scale the servings, correct the numbers, or
-//  swap it for one of the model's other guesses or a search result.
+//  Edit one food: fix the name, scale the servings, correct the numbers (type
+//  or slide), swap it for another guess or a search result, or remove it with
+//  the trash button.
 //
 
 import SwiftUI
@@ -29,15 +30,22 @@ struct ItemEditorView: View {
                     NavigationLink(value: ReviewRoute.search(.replace(itemID))) {
                         Label("Find a Different Food", systemImage: "magnifyingglass")
                     }
-                    Button("Remove from Meal", systemImage: "trash", role: .destructive) {
-                        draft.remove(itemID)
-                        path.removeAll()
-                    }
                 }
             }
             .scrollContentBackground(.hidden)
             .background(.appBackground)
+            .contentMargins(.top, 4, for: .scrollContent)
+            .scrollDismissesKeyboard(.interactively)
             .capsNavigationTitle(item.food.name)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Remove", systemImage: "trash", role: .destructive) {
+                        draft.remove(itemID)
+                        path.removeAll()
+                    }
+                    .tint(.appDestructive)
+                }
+            }
             .onDisappear { draft.markChecked(itemID) }
         } else {
             // Removed or replaced while this screen was on the stack.
@@ -88,34 +96,51 @@ struct ItemEditorView: View {
 }
 
 /// The editable fields of a food, shared by the item editor and manual entry.
+/// Every number can be typed (tap its value) or dragged (its slider).
 struct FoodFields: View {
     @Binding var food: FoodItem
+    @FocusState private var focused: Macro?
 
     var body: some View {
         Section {
-            TextField("Name", text: $food.name)
-                .font(.body.weight(.semibold))
-            TextField("Portion, like 1 cup or 2 slices", text: $food.portion)
-        } header: {
-            Text("FOOD").sectionHeader()
-        }
-
-        Section {
+            HStack {
+                TextField("Name", text: $food.name)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.appTextEmphasis)
+                Image(systemName: "pencil")
+                    .foregroundStyle(.appTextMuted)
+                    .accessibilityHidden(true)
+            }
+            TextField("Portion, like 1 cup", text: $food.portion)
+                .foregroundStyle(.appText)
             Stepper(value: $food.servings, in: 0.25...20, step: 0.25) {
-                LabeledContent("Servings", value: Formatting.servings(food.servings))
+                HStack {
+                    Text("Servings")
+                    Spacer()
+                    Text(Formatting.servings(food.servings))
+                        .font(.body.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(.appTextEmphasis)
+                }
             }
         }
 
         Section {
             ForEach(Macro.allCases) { macro in
-                NumberRow(macro: macro, value: binding(for: macro))
+                NutrientEditor(macro: macro, value: binding(for: macro), focused: $focused)
             }
         } header: {
-            Text(food.servings == 1 ? "NUTRITION" : "NUTRITION PER SERVING").sectionHeader()
+            Text(food.servings == 1 ? "NUTRITION" : "PER SERVING").sectionHeader()
         } footer: {
             if food.servings != 1 {
                 let n = food.nutrition
-                Text("Total \(Formatting.calories(n.calories)) kcal · \(Formatting.macroLine(protein: n.protein, carbs: n.carbs, fat: n.fat))")
+                Text("Total \(Formatting.calories(n.calories)) cal · \(Formatting.macroLine(protein: n.protein, carbs: n.carbs, fat: n.fat))")
+            }
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { focused = nil }
             }
         }
     }
@@ -136,27 +161,75 @@ struct FoodFields: View {
     }
 }
 
-private struct NumberRow: View {
+/// One number: its value in a tinted pill you can tap to type, and a slider
+/// in the macro's color underneath.
+private struct NutrientEditor: View {
     let macro: Macro
     @Binding var value: Double
+    var focused: FocusState<Macro?>.Binding
+
+    /// Fixed while editing so the slider doesn't rescale under your thumb.
+    @State private var upper: Double = 100
+
+    private var step: Double { macro == .calories ? 5 : 1 }
+    private var isFocused: Bool { focused.wrappedValue == macro }
 
     var body: some View {
-        LabeledContent {
-            HStack(spacing: 4) {
-                TextField("0", value: $value, format: .number.precision(.fractionLength(0...1)))
-                    .keyboardType(.decimalPad)
-                    .multilineTextAlignment(.trailing)
-                    .monospacedDigit()
-                Text(macro.unit)
-                    .foregroundStyle(.appTextMuted)
-            }
-        } label: {
-            Label {
+        VStack(spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: macro.symbol)
+                    .foregroundStyle(macro.accent)
+                    .frame(width: 24)
                 Text(macro.name)
-            } icon: {
-                Image(systemName: macro.symbol).foregroundStyle(macro.accent)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.appTextEmphasis)
+                Spacer()
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    TextField("0", value: $value, format: .number.precision(.fractionLength(0...1)))
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .font(.title3.weight(.bold))
+                        .monospacedDigit()
+                        .foregroundStyle(.appTextEmphasis)
+                        .frame(minWidth: 36)
+                        .fixedSize()
+                        .focused(focused, equals: macro)
+                    Text(macro.unit)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.appTextMuted)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 7)
+                .background(macro.accent.opacity(isFocused ? 0.22 : 0.12), in: Capsule())
+                .overlay(Capsule().strokeBorder(macro.accent.opacity(isFocused ? 0.7 : 0), lineWidth: 1.5))
+                .contentShape(Capsule())
+                .onTapGesture { focused.wrappedValue = macro }
+                .animation(.snappy, value: isFocused)
             }
+            Slider(
+                value: Binding(get: { min(value, upper) }, set: { value = ($0 / step).rounded() * step }),
+                in: 0...upper
+            )
+            .tint(macro.accent)
+            .accessibilityLabel(macro.name)
         }
+        .padding(.vertical, 6)
+        .sensoryFeedback(.selection, trigger: Int(value / (step * 5)))
+        .onAppear { upper = Self.upperBound(macro, value) }
+        .onChange(of: value) { _, new in
+            if new > upper { upper = Self.upperBound(macro, new) }
+        }
+    }
+
+    private static func upperBound(_ macro: Macro, _ value: Double) -> Double {
+        let floor: Double = switch macro {
+        case .calories: 1000
+        case .protein:  100
+        case .carbs:    150
+        case .fat:      80
+        }
+        let round: Double = macro == .calories ? 100 : 10
+        return max(floor, (value * 2 / round).rounded(.up) * round)
     }
 }
 
