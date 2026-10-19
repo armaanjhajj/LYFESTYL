@@ -28,6 +28,8 @@ struct SettingsView: View {
     @FocusState private var focused: Macro?
     @FocusState private var editingName: Bool
     @State private var photoItem: PhotosPickerItem?
+    @State private var choosingPhoto = false
+    @State private var takingPhoto = false
 
     var body: some View {
         @Bindable var goalStore = goalStore
@@ -59,6 +61,11 @@ struct SettingsView: View {
                 }
             }
             .task { await refreshAccount() }
+            .photosPicker(isPresented: $choosingPhoto, selection: $photoItem, matching: .images, photoLibrary: .shared())
+            .fullScreenCover(isPresented: $takingPhoto) {
+                CameraPicker { profile.setPhoto(from: $0) }
+                    .ignoresSafeArea()
+            }
             .onChange(of: photoItem) { _, item in
                 guard let item else { return }
                 photoItem = nil
@@ -85,9 +92,10 @@ struct SettingsView: View {
         return Section {
             VStack(spacing: 12) {
                 Menu {
-                    PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
-                        Label(photoAction, systemImage: "photo.on.rectangle")
+                    if CameraPicker.isAvailable {
+                        Button("Take Photo", systemImage: "camera") { takingPhoto = true }
                     }
+                    Button(photoAction, systemImage: "photo.on.rectangle") { choosingPhoto = true }
                     if profile.photo != nil {
                         Button("Remove Photo", systemImage: "trash", role: .destructive) { profile.removePhoto() }
                     }
