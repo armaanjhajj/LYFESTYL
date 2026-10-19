@@ -30,6 +30,9 @@ nonisolated struct Habit: Identifiable, Hashable, Sendable {
     let macro: Macro
     let title: String
     let detail: String
+    /// The daily average behind the habit, and the goal it's measured against.
+    var average: Double = 0
+    var goal: Double = 0
 
     var id: Kind { kind }
     var isPositive: Bool { kind == .onTrack }
@@ -99,7 +102,8 @@ nonisolated enum HabitEngine {
             habits.append(Habit(
                 kind: .lowProtein, macro: .protein,
                 title: "Protein has been low",
-                detail: "Under goal \(of(lowProtein)). Avg \(Formatting.grams(average(.protein)))."
+                detail: "Under goal \(of(lowProtein)). Avg \(Formatting.grams(average(.protein))).",
+                average: average(.protein), goal: goals.protein
             ))
         }
 
@@ -108,7 +112,8 @@ nonisolated enum HabitEngine {
             habits.append(Habit(
                 kind: .highCarbs, macro: .carbs,
                 title: "Carbs are running high",
-                detail: "Over goal \(of(highCarbs)). Avg \(Formatting.grams(average(.carbs)))."
+                detail: "Over goal \(of(highCarbs)). Avg \(Formatting.grams(average(.carbs))).",
+                average: average(.carbs), goal: goals.carbs
             ))
         }
 
@@ -117,7 +122,8 @@ nonisolated enum HabitEngine {
             habits.append(Habit(
                 kind: .highFat, macro: .fat,
                 title: "Fat is running high",
-                detail: "Over goal \(of(highFat)). Avg \(Formatting.grams(average(.fat)))."
+                detail: "Over goal \(of(highFat)). Avg \(Formatting.grams(average(.fat))).",
+                average: average(.fat), goal: goals.fat
             ))
         }
 
@@ -127,13 +133,15 @@ nonisolated enum HabitEngine {
             habits.append(Habit(
                 kind: .highCalories, macro: .calories,
                 title: "Calories are over goal",
-                detail: "Over goal \(of(highCalories)). Avg \(Formatting.calories(average(.calories))) cal."
+                detail: "Over goal \(of(highCalories)). Avg \(Formatting.calories(average(.calories))) cal.",
+                average: average(.calories), goal: goals.calories
             ))
         } else if lowCalories >= threshold {
             habits.append(Habit(
                 kind: .lowCalories, macro: .calories,
                 title: "Calories are well under goal",
-                detail: "Under 70% of goal \(of(lowCalories)). Missing some meals?"
+                detail: "Under 70% of goal \(of(lowCalories)). Missing some meals?",
+                average: average(.calories), goal: goals.calories
             ))
         }
 
@@ -142,7 +150,8 @@ nonisolated enum HabitEngine {
             habits.append(Habit(
                 kind: .onTrack, macro: .calories,
                 title: "On track",
-                detail: onTarget > 0 ? "Calories on goal \(of(onTarget))." : "Macros look balanced."
+                detail: onTarget > 0 ? "Calories on goal \(of(onTarget))." : "Macros look balanced.",
+                average: average(.calories), goal: goals.calories
             ))
         }
         return .habits(habits)

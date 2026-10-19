@@ -24,7 +24,7 @@ A free, native iOS calorie tracker that runs entirely on your iPhone. Point the 
 
 **No photos kept.** Frames are capped at 2560 px in memory and released the moment you log or dismiss. Nothing is written to disk or the photo library. A logged meal stores only its foods, as one binary blob of well under 100 bytes per food.
 
-**Dashboard.** Today's calorie ring and macro bars, today's meals, habit flags, the last seven days for any macro against its goal, and the full history by day. Tap any meal to edit it in the same drawer.
+**Dashboard.** Laid out like the Health app's Summary: a Today card with calories, protein, carbs and fat in colored columns and concentric rings toward your goals; today's meals; a card per nutrient with its last seven days (tap for a full chart with W, M, 6M and Y ranges, a daily average you can scrub, and the goal as a dashed line); highlight cards for your habits with average versus goal; and the history by day. Tap any meal to edit it in the same drawer.
 
 **Habits** are plain arithmetic over the last 7 finished days you logged, with no model involved, so every flag has a checkable reason: low protein (under 80% of goal on most logged days), high carbs (over 115%), high fat (over 120%), calories over (110%) or well under (70%, which usually means meals are missing). Fewer than 3 logged days shows no flags.
 
