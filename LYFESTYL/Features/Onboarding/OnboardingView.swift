@@ -142,7 +142,9 @@ private struct WelcomePage: View {
             VStack(alignment: .leading, spacing: 30) {
                 VStack(spacing: 2) {
                     Text("Welcome to")
-                    Text("LYFESTYL").foregroundStyle(.appAccent)
+                    // Two-tone, like the app icon.
+                    Text("\(Text("LYFE").foregroundStyle(Solar.blue))\(Text("STYL").foregroundStyle(.appAccent))")
+                        .accessibilityLabel("LYFESTYL")
                 }
                 .screenTitle()
                 .frame(maxWidth: .infinity)
