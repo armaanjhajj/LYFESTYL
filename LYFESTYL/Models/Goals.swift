@@ -96,6 +96,14 @@ nonisolated struct BodyProfile: Codable, Hashable, Sendable {
             }
         }
 
+        var symbol: String {
+            switch self {
+            case .lose:     "arrow.down.right"
+            case .maintain: "equal"
+            case .gain:     "dumbbell.fill"
+            }
+        }
+
         /// Daily calorie adjustment from maintenance. About 0.5 kg a week down,
         /// or a lean surplus up.
         var calorieDelta: Double {

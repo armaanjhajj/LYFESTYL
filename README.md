@@ -5,13 +5,14 @@
 Calorie tracking from a photo. iOS, free, runs on device.
 
 <p>
-  <img src="Screenshots/01-onboarding.png" width="220" alt="Onboarding">
+  <img src="Screenshots/01-onboarding.png" width="220" alt="Welcome">
   <img src="Screenshots/02-review.png" width="220" alt="Review drawer">
   <img src="Screenshots/03-dashboard.png" width="220" alt="Dashboard">
 </p>
 
 ## Features
 
+- Setup: profile photo and name, Apple Health, goals from height, weight and activity
 - Snap a meal, get calories and macros per item
 - Reads labels on packaged food
 - Edit any item with sliders, then log

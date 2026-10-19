@@ -8,9 +8,21 @@
 
 import SwiftUI
 
-/// The calculator's form sections.
+/// The calculator's form sections, also shown one at a time in onboarding.
 struct GoalCalculatorForm: View {
     @Binding var profile: BodyProfile
+
+    var body: some View {
+        BodySection(profile: $profile)
+        ActivitySection(profile: $profile)
+        GoalPreviewSection(goals: profile.suggestedGoals)
+    }
+}
+
+/// Sex, age, height and weight.
+struct BodySection: View {
+    @Binding var profile: BodyProfile
+    var showsHealthFill = true
 
     @Environment(HealthService.self) private var health
     @State private var filling = false
@@ -51,7 +63,7 @@ struct GoalCalculatorForm: View {
                 SliderField(title: "Weight", value: $profile.weightKg, range: 35...180, unit: "kg", focus: $focused, id: .weight)
             }
 
-            if health.isAvailable {
+            if showsHealthFill, health.isAvailable {
                 Button {
                     filling = true
                     Task {
@@ -67,38 +79,6 @@ struct GoalCalculatorForm: View {
                 }
                 .disabled(filling)
             }
-        }
-
-        Section {
-            Picker("Activity", selection: $profile.activity) {
-                ForEach(BodyProfile.Activity.allCases, id: \.self) { Text($0.label).tag($0) }
-            }
-            .pickerStyle(.menu)
-            Picker("Goal", selection: $profile.aim) {
-                ForEach(BodyProfile.Aim.allCases, id: \.self) { Text($0.label).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .listRowSeparator(.hidden)
-        }
-
-        Section {
-            let goals = profile.suggestedGoals
-            VStack(spacing: 10) {
-                VStack(spacing: 0) {
-                    Text(Formatting.calories(goals.calories))
-                        .font(.system(size: 48, weight: .black))
-                        .foregroundStyle(.appTextEmphasis)
-                        .contentTransition(.numericText(value: goals.calories))
-                    Text("CAL A DAY").sectionHeader(color: .appTextMuted)
-                }
-                MacroLine(protein: goals.protein, carbs: goals.carbs, fat: goals.fat)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
-            .animation(.snappy, value: goals)
-        } footer: {
-            Text("A starting point, not medical advice.")
-                .frame(maxWidth: .infinity)
         }
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
@@ -135,6 +115,51 @@ struct GoalCalculatorForm: View {
             get: { (profile.weightKg * 2.20462).rounded() },
             set: { profile.weightKg = $0 / 2.20462 }
         )
+    }
+}
+
+/// How active you are and what you're after.
+struct ActivitySection: View {
+    @Binding var profile: BodyProfile
+
+    var body: some View {
+        Section {
+            Picker("Activity", selection: $profile.activity) {
+                ForEach(BodyProfile.Activity.allCases, id: \.self) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.menu)
+            Picker("Goal", selection: $profile.aim) {
+                ForEach(BodyProfile.Aim.allCases, id: \.self) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .listRowSeparator(.hidden)
+        }
+    }
+}
+
+/// The suggested calories and macros.
+struct GoalPreviewSection: View {
+    let goals: Goals
+
+    var body: some View {
+        Section {
+            VStack(spacing: 10) {
+                VStack(spacing: 0) {
+                    Text(Formatting.calories(goals.calories))
+                        .font(.system(size: 48, weight: .black))
+                        .foregroundStyle(.appTextEmphasis)
+                        .contentTransition(.numericText(value: goals.calories))
+                    Text("CAL A DAY").sectionHeader(color: .appTextMuted)
+                }
+                MacroLine(protein: goals.protein, carbs: goals.carbs, fat: goals.fat)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .animation(.snappy, value: goals)
+        } footer: {
+            Text("A starting point, not medical advice.")
+                .frame(maxWidth: .infinity)
+        }
     }
 }
 

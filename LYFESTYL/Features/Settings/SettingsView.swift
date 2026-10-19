@@ -7,7 +7,6 @@
 //  something is wrong with it.
 //
 
-import PhotosUI
 import SwiftData
 import SwiftUI
 
@@ -25,9 +24,6 @@ struct SettingsView: View {
     @State private var confirmDeleteAll = false
     @FocusState private var focused: Macro?
     @FocusState private var editingName: Bool
-    @State private var photoItem: PhotosPickerItem?
-    @State private var choosingPhoto = false
-    @State private var takingPhoto = false
 
     var body: some View {
         @Bindable var goalStore = goalStore
@@ -58,18 +54,6 @@ struct SettingsView: View {
                     Button("Done") { focused = nil; editingName = false }
                 }
             }
-            .photosPicker(isPresented: $choosingPhoto, selection: $photoItem, matching: .images, photoLibrary: .shared())
-            .fullScreenCover(isPresented: $takingPhoto) {
-                CameraPicker { profile.setPhoto(from: $0) }
-                    .ignoresSafeArea()
-            }
-            .onChange(of: photoItem) { _, item in
-                guard let item else { return }
-                photoItem = nil
-                Task {
-                    if let data = try? await item.loadTransferable(type: Data.self) { profile.setPhoto(from: data) }
-                }
-            }
             .confirmationDialog("Delete every meal?", isPresented: $confirmDeleteAll, titleVisibility: .visible) {
                 Button("Delete All Meals", role: .destructive) {
                     MealLog(context: context, health: health).deleteAll()
@@ -85,28 +69,9 @@ struct SettingsView: View {
 
     /// Photo and name.
     private func profileSection(name: Binding<String>) -> some View {
-        let photoAction = profile.photo == nil ? "Choose Photo" : "Change Photo"
-        return Section {
+        Section {
             VStack(spacing: 12) {
-                Menu {
-                    if CameraPicker.isAvailable {
-                        Button("Take Photo", systemImage: "camera") { takingPhoto = true }
-                    }
-                    Button(photoAction, systemImage: "photo.on.rectangle") { choosingPhoto = true }
-                    if profile.photo != nil {
-                        Button("Remove Photo", systemImage: "trash", role: .destructive) { profile.removePhoto() }
-                    }
-                } label: {
-                    Avatar(photo: profile.photo, initials: profile.initials, size: 96)
-                        .overlay(alignment: .bottomTrailing) {
-                            Image(systemName: "camera.circle.fill")
-                                .font(.system(size: 28))
-                                .symbolRenderingMode(.palette)
-                                .foregroundStyle(Color.appBackground, Color.appAccent)
-                                .offset(x: 2, y: 2)
-                        }
-                }
-                .accessibilityLabel("Profile photo")
+                ProfilePhotoButton()
 
                 TextField("Your Name", text: name)
                     .font(.title2.weight(.bold))
