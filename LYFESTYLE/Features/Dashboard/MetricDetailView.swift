@@ -4,7 +4,7 @@
 //
 //  One nutrient over time, like a Health data page: a W / M / 6M / Y switch,
 //  the average (or the bar you're touching) called out above a bar chart with
-//  the goal as a dashed line, and a highlight comparing the average to the goal.
+//  the goal as a dashed line.
 //
 
 import Charts
@@ -59,17 +59,6 @@ struct MetricDetailView: View {
                 chart(points: points, goal: goal, picked: picked)
                     .frame(height: 260)
 
-                if !points.isEmpty {
-                    SectionTitle("Highlights")
-                    HighlightCard(habit: Habit(
-                        kind: .onTrack,
-                        macro: macro,
-                        title: Self.headline(average: average, goal: goal, macro: macro),
-                        detail: Self.spanName(span) + ".",
-                        average: average,
-                        goal: goal
-                    ))
-                }
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 32)
@@ -209,20 +198,5 @@ struct MetricDetailView: View {
         return first == last ? first.formatted(style) : "\(first.formatted(style)) to \(last.formatted(style.year()))"
     }
 
-    private static func spanName(_ span: Span) -> String {
-        switch span {
-        case .week:      "Last 7 days"
-        case .month:     "Last 30 days"
-        case .sixMonths: "Last 6 months"
-        case .year:      "Last year"
-        }
-    }
 
-    private static func headline(average: Double, goal: Double, macro: Macro) -> String {
-        guard goal > 0 else { return "Your daily average" }
-        let gap = Formatting.value(abs(average - goal), for: macro)
-        if average < goal * 0.9 { return "Under your goal by \(gap) a day" }
-        if average > goal * 1.1 { return "Over your goal by \(gap) a day" }
-        return "Right around your goal"
-    }
 }

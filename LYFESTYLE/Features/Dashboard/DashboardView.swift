@@ -3,9 +3,8 @@
 //  LYFESTYL
 //
 //  Top right of the camera, laid out like the Health app's Summary: a Today
-//  card with rings, today's meals, a card per nutrient with its last seven
-//  days (each opens a full chart), highlights from your habits, and the
-//  history by day.
+//  card with rings, today's food (swipe to delete), a card per nutrient with
+//  its last seven days (each opens a full chart), and the history by day.
 //
 
 import Charts
@@ -36,38 +35,39 @@ struct DashboardView: View {
         let past = days.filter { !Calendar.current.isDateInToday($0.day) }
 
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
+            List {
+                Section {
                     TodayCard(
                         title: "Today",
                         date: .now,
                         nutrition: todayMeals.map(\.nutrition).total,
                         goals: goals
                     )
+                }
 
-                    SectionTitle("Meals")
-                    MealsCard(meals: todayMeals, empty: "Nothing yet today.", editing: $editing)
+                FoodSection(meals: todayMeals, empty: "Nothing yet today.", editing: $editing)
 
-                    SectionTitle("Nutrients")
-                    ForEach(Macro.allCases) { macro in
-                        NavigationLink(value: macro) {
-                            MetricCard(macro: macro, days: days, lastMeal: todayMeals.first?.loggedAt)
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    SectionTitle("Highlights")
-                    HighlightCards(result: HabitEngine.evaluate(days: days, goals: goals))
-
-                    if !past.isEmpty {
-                        SectionTitle("History")
-                        HistoryCard(days: past, goal: goals.calories)
+                ForEach(Macro.allCases) { macro in
+                    Section {
+                        MetricCard(macro: macro, days: days, lastMeal: todayMeals.first?.loggedAt)
+                            .background { NavigationLink(value: macro) { EmptyView() }.opacity(0) }
+                    } header: {
+                        if macro == .calories { SectionTitle("Nutrients") }
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 32)
+
+                if !past.isEmpty {
+                    Section {
+                        ForEach(past) { day in
+                            HistoryRow(day: day, goal: goals.calories)
+                                .background { NavigationLink(value: day.day) { EmptyView() }.opacity(0) }
+                        }
+                    } header: {
+                        SectionTitle("History")
+                    }
+                }
             }
-            .background(.appBackground)
+            .dashboardListStyle()
             .navigationDestination(for: Macro.self) { MetricDetailView(macro: $0, days: days) }
             .navigationDestination(for: Date.self) { DayDetailView(day: $0) }
             .toolbar {
@@ -103,21 +103,18 @@ struct DayDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
+        List {
+            Section {
                 TodayCard(
                     title: Formatting.relativeDay(day),
                     date: day,
                     nutrition: meals.map(\.nutrition).total,
                     goals: goalStore.goals
                 )
-                SectionTitle("Meals")
-                MealsCard(meals: meals, empty: "No meals on this day.", editing: $editing)
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 32)
+            FoodSection(meals: meals, empty: "Nothing on this day.", editing: $editing)
         }
-        .background(.appBackground)
+        .dashboardListStyle()
         .capsNavigationTitle(Formatting.relativeDay(day))
         .mealEditor(item: $editing)
     }
@@ -125,15 +122,24 @@ struct DayDetailView: View {
 
 // MARK: - Cards
 
-/// The rounded card every block of the dashboard sits on.
-struct DashboardCard<Content: View>: View {
-    @ViewBuilder var content: Content
+extension View {
+    /// The dashboard's list: every section a rounded card on the palette's
+    /// surface tone, spaced like the Health app's Summary.
+    func dashboardListStyle() -> some View {
+        self
+            .listStyle(.insetGrouped)
+            .listSectionSpacing(12)
+            .scrollContentBackground(.hidden)
+            .background(.appBackground)
+            .contentMargins(.top, 4, for: .scrollContent)
+    }
+}
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) { content }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
-            .background(Color.appSurface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+/// Cards sit on the surface tone.
+private extension View {
+    func cardRow() -> some View {
+        listRowBackground(Color.appSurface)
+            .listRowInsets(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
     }
 }
 
@@ -145,8 +151,9 @@ struct SectionTitle: View {
     var body: some View {
         Text(text)
             .blackCaps(.title3, tracking: 0.6)
-            .padding(.top, 14)
-            .padding(.leading, 4)
+            .textCase(nil)
+            .padding(.top, 8)
+            .padding(.leading, -12)
             .accessibilityAddTraits(.isHeader)
     }
 }
@@ -190,7 +197,7 @@ private struct TodayCard: View {
     let goals: Goals
 
     var body: some View {
-        DashboardCard {
+        VStack(alignment: .leading, spacing: 0) {
             CardHeader(
                 symbol: "fork.knife",
                 title: title,
@@ -236,6 +243,7 @@ private struct TodayCard: View {
             }
             .padding(.top, 12)
         }
+        .cardRow()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(title): \(Formatting.calories(nutrition.calories)) of \(Formatting.calories(goals.calories)) calories, \(Formatting.grams(nutrition.protein)) protein, \(Formatting.grams(nutrition.carbs)) carbs, \(Formatting.grams(nutrition.fat)) fat")
     }
@@ -266,24 +274,33 @@ private struct ConcentricRings: View {
     }
 }
 
-private struct MealsCard: View {
+/// Today's (or a day's) food: tap to open in the drawer, swipe to delete.
+private struct FoodSection: View {
     let meals: [MealEntry]
     let empty: String
     @Binding var editing: MealDraft?
 
+    @Environment(\.modelContext) private var context
+    @Environment(HealthService.self) private var health
+
     var body: some View {
-        DashboardCard {
+        Section {
             if meals.isEmpty {
                 Text(empty)
-                    .font(.body)
                     .foregroundStyle(.appTextMuted)
+                    .cardRow()
             } else {
-                ForEach(Array(meals.enumerated()), id: \.element.id) { index, meal in
-                    if index > 0 { Divider().padding(.vertical, 10) }
+                ForEach(meals) { meal in
                     Button { editing = MealDraft(editing: meal) } label: { MealRow(meal: meal) }
                         .buttonStyle(.plain)
+                        .cardRow()
+                }
+                .onDelete { offsets in
+                    MealLog(context: context, health: health).delete(offsets.map { meals[$0] })
                 }
             }
+        } header: {
+            SectionTitle("Food")
         }
     }
 }
@@ -304,13 +321,10 @@ private struct MealRow: View {
                     .foregroundStyle(.appTextMuted)
             }
             Spacer(minLength: 8)
-            VStack(alignment: .trailing, spacing: 2) {
-                Text("\(Formatting.calories(n.calories)) cal")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.appTextEmphasis)
-                MacroLine(protein: n.protein, carbs: n.carbs, fat: n.fat)
-            }
-            .monospacedDigit()
+            Text("\(Formatting.calories(n.calories)) cal")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.appTextEmphasis)
+                .monospacedDigit()
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
@@ -326,7 +340,7 @@ private struct MetricCard: View {
 
     var body: some View {
         let week = WeekValues(days: days, macro: macro)
-        DashboardCard {
+        VStack(alignment: .leading, spacing: 0) {
             CardHeader(
                 symbol: macro.symbol,
                 title: macro.name,
@@ -356,6 +370,7 @@ private struct MetricCard: View {
             }
             .padding(.top, 14)
         }
+        .cardRow()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(macro.name) today, \(Formatting.value(week.today, for: macro))")
         .accessibilityHint("Shows the full chart")
@@ -377,113 +392,32 @@ private struct WeekValues {
     }
 }
 
-private struct HighlightCards: View {
-    let result: HabitEngine.Result
-
-    var body: some View {
-        switch result {
-        case .notEnoughData(let logged):
-            DashboardCard {
-                CardHeader(symbol: "chart.bar.fill", title: "Habits", tint: .appAccentSecondary)
-                Text("Log \(HabitEngine.minimumDays) days to see your habits. \(logged) so far.")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(.appTextEmphasis)
-                    .padding(.top, 10)
-            }
-        case .habits(let habits):
-            ForEach(habits) { habit in
-                HighlightCard(habit: habit)
-            }
-        }
-    }
-}
-
-/// A habit the way Health shows a highlight: a sentence, then the average
-/// against the goal as two bars.
-struct HighlightCard: View {
-    let habit: Habit
-
-    var body: some View {
-        let tint = habit.macro.accent
-        let top = max(habit.average, habit.goal, 1)
-        DashboardCard {
-            CardHeader(symbol: habit.macro.symbol, title: habit.macro.name, tint: tint)
-            Text([habit.title + ".", habit.detail].filter { $0 != "." && !$0.isEmpty }.joined(separator: " "))
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.appTextEmphasis)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 10)
-            Divider().padding(.vertical, 14)
-            VStack(alignment: .leading, spacing: 12) {
-                comparison("Average", habit.average, fraction: habit.average / top, color: tint)
-                comparison("Goal", habit.goal, fraction: habit.goal / top, color: .appTextMuted)
-            }
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    private func comparison(_ label: String, _ value: Double, fraction: Double, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(habit.macro == .calories ? Formatting.calories(value) : Formatting.grams(value, includeUnit: false))
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(color)
-                Text(habit.macro.unit)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(color)
-                Text(label.uppercased())
-                    .font(.caption.weight(.black))
-                    .tracking(0.5)
-                    .foregroundStyle(.appTextMuted)
-                    .padding(.leading, 4)
-            }
-            .monospacedDigit()
-            GeometryReader { geo in
-                Capsule()
-                    .fill(color)
-                    .frame(width: max(8, geo.size.width * min(fraction, 1)), height: 10)
-            }
-            .frame(height: 10)
-        }
-    }
-}
-
-private struct HistoryCard: View {
-    let days: [DayTotal]
+private struct HistoryRow: View {
+    let day: DayTotal
     let goal: Double
 
     var body: some View {
-        DashboardCard {
-            ForEach(Array(days.enumerated()), id: \.element.id) { index, day in
-                if index > 0 { Divider().padding(.vertical, 10) }
-                NavigationLink(value: day.day) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(Formatting.relativeDay(day.day))
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(.appTextEmphasis)
-                            Text(day.mealCount == 1 ? "1 meal" : "\(day.mealCount) meals")
-                                .font(.subheadline)
-                                .foregroundStyle(.appTextMuted)
-                        }
-                        Spacer()
-                        VStack(alignment: .trailing, spacing: 2) {
-                            Text("\(Formatting.calories(day.nutrition.calories)) cal")
-                                .font(.body.weight(.semibold))
-                                .foregroundStyle(day.nutrition.calories > goal * 1.1 ? .appDestructive : .appTextEmphasis)
-                            MacroLine(protein: day.nutrition.protein, carbs: day.nutrition.carbs, fat: day.nutrition.fat)
-                        }
-                        .monospacedDigit()
-                        Image(systemName: "chevron.right")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.appTextMuted)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityElement(children: .combine)
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(Formatting.relativeDay(day.day))
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.appTextEmphasis)
+                Text("\(day.mealCount) logged")
+                    .font(.subheadline)
+                    .foregroundStyle(.appTextMuted)
             }
+            Spacer()
+            Text("\(Formatting.calories(day.nutrition.calories)) cal")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(day.nutrition.calories > goal * 1.1 ? .appDestructive : .appTextEmphasis)
+                .monospacedDigit()
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.appTextMuted)
         }
+        .contentShape(Rectangle())
+        .cardRow()
+        .accessibilityElement(children: .combine)
     }
 }
 
