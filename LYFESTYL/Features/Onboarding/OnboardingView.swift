@@ -2,7 +2,7 @@
 //  OnboardingView.swift
 //  LYFESTYL
 //
-//  First launch only. The app icon, one line, one button. Goals start at sensible
+//  First launch only. The app icon and one button. Goals start at sensible
 //  defaults and live in Settings.
 //
 
@@ -21,10 +21,6 @@ struct OnboardingView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 140 * 0.2237, style: .continuous))
                 .shadow(color: Color.appTextEmphasis.opacity(0.15), radius: 18, y: 8)
                 .accessibilityLabel("LYFESTYL")
-            Text("Snap your food.")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(.appTextMuted)
-                .padding(.top, 20)
             Spacer()
             Button(action: onDone) {
                 Text("Start")
