@@ -216,7 +216,16 @@ struct SettingsView: View {
     private var aboutSection: some View {
         Section {
             VStack(spacing: 8) {
-                LyfestylLogo(size: 26)
+                Image(.logo)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 64, height: 64)
+                    .clipShape(RoundedRectangle(cornerRadius: 64 * 0.2237, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 64 * 0.2237, style: .continuous)
+                            .strokeBorder(Color.appTextMuted.opacity(0.2), lineWidth: 0.5)
+                    )
+                    .accessibilityLabel("LYFESTYL")
                 Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0")
                     .font(.footnote)
                     .foregroundStyle(.appTextMuted)
