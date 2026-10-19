@@ -1,6 +1,9 @@
-# ---- Never commit local credentials (the app needs none) ----
-LYFESTYLE/Secrets.plist
+# ---- Never commit credentials (the app needs none) ----
 *.secret.plist
+*.p8
+*.p12
+*.mobileprovision
+.env*
 
 # ---- macOS ----
 .DS_Store

@@ -49,13 +49,13 @@ No accounts, no servers, no API keys, no third-party packages. The iCloud accoun
 
 ## Setup
 
-1. Open `LYFESTYLE.xcodeproj` and pick your team under Signing & Capabilities.
-2. Keep or change the bundle ID (`Moments.LYFESTYLE`) and the iCloud container (`iCloud.Moments.LYFESTYLE`). If you change the container, update `LYFESTYLEApp.cloudContainerID` to match.
-3. Capabilities used (already in `LYFESTYLE.entitlements`): iCloud with CloudKit and key-value storage, Push Notifications (CloudKit uses silent pushes to sync), Background Modes > Remote notifications, HealthKit.
-4. Run on a device. The first launch in the Development environment creates the CloudKit schema automatically.
-5. Before shipping, deploy the schema to Production in the CloudKit Console (Schema > Deploy Schema Changes).
+Signing is automatic under team `4Q768JXR89`, bundle ID `Moments.LYFESTYLE`. The App ID is registered with every capability the app uses (in `LYFESTYLE.entitlements`): iCloud with CloudKit (container `iCloud.Moments.LYFESTYLE`) and key-value storage, Push Notifications (CloudKit syncs over silent pushes), and HealthKit. Background Modes > Remote notifications is set in the build settings.
 
-Nothing needs a secret. If an old `LYFESTYLE/Secrets.plist` from the previous app is still on disk, it is unused and can be deleted.
+1. Open `LYFESTYLE.xcodeproj` and run on a device. If you change the team, bundle ID or container, build once with Xcode (or `xcodebuild -allowProvisioningUpdates`) so the new App ID and container are registered, and update `LYFESTYLEApp.cloudContainerID` to match the container.
+2. The first launch in the Development environment creates the CloudKit schema automatically.
+3. Before shipping, deploy the schema to Production in the CloudKit Console (Schema > Deploy Schema Changes).
+
+The app needs no secrets, API keys or config files.
 
 ## CloudKit record schema
 
