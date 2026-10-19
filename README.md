@@ -1,349 +1,109 @@
 # LYFESTYL
 
-A native iOS 26 health-journaling app. Log a thought — typed or spoken — and the
-app helps you **organize** it: pick what you're logging (Nutrition, Activity,
-Sleep, Health, Mind, Social) and answer a couple of quick, tappable questions, or
-just free-write and let Apple's **on-device Foundation Models** quietly file it
-under one category behind the scenes. No grades, no scores, no guessed numbers —
-the app reflects what you logged, it doesn't judge it. Fully offline AI, no API
-keys, no cost, private by design. Your history syncs through your own private
-**iCloud** account (Apple CloudKit) so you can watch your activity build, no
-third-party server involved.
+A free, native iOS calorie tracker that runs entirely on your iPhone. Point the camera at a meal and snap. Apple's on-device model itemizes every food with calories, protein, carbs, fat and a confidence level. Fix anything with a tap, then log it. Photos are never stored.
 
-```
-LYFE
-STYL
-```
+<p>
+  <img src="Screenshots/01-onboarding.png" width="240" alt="Onboarding">
+  <img src="Screenshots/02-review.png" width="240" alt="Review drawer after a snap">
+  <img src="Screenshots/03-dashboard.png" width="240" alt="Dashboard">
+</p>
 
----
+<sub>Simulator screenshots with sample meals.</sub>
 
-## Screens
+## How it works
 
-| Onboarding | Journal | Log |
-| --- | --- | --- |
-| ![Onboarding](Screenshots/01-onboarding.png) | ![Journal](Screenshots/02-journal.png) | ![Log](Screenshots/03-log.png) |
+**One screen: the camera.** Shutter bottom center, account and settings top left, dashboard top right, today's calories left at the top. The photo library button (bottom left) and search (bottom right) cover meals you can't photograph right now. The volume buttons and Camera Control also work as the shutter.
 
-| Entry detail | Trends |
+**Snap.** The shutter doesn't run a photo capture. It grabs the next frame from the live video feed, the way Snapchat does, so it's instant. The frame freezes on screen and the drawer rises while Foundation Models reads it. Food names stream in as the model finds them.
+
+**Confident result.** The drawer lists each food on its own with its estimate. Tap a food to change its name, servings or numbers, pick one of the model's other guesses, or search for something else. Swipe to remove, Add Food to add. X dismisses, + logs, the retry button reads the photo again (sampled, so it can come out differently).
+
+**Unsure result.** If the model can't commit to anything, or sees no food, the drawer opens on search instead: its guesses first, then your recent foods. Typing searches foods you've logged before, a bundled table of about 120 common foods, and offers an on-device estimate of whatever you typed ("two eggs and toast" works) or manual entry. Individual low-confidence foods in a confident scan are marked CHECK and lead to the same search.
+
+**No photos kept.** Frames are downscaled to 1280 px in memory and released the moment you log or dismiss. Nothing is written to disk or the photo library. A logged meal stores only its foods, as one binary blob of well under 100 bytes per food.
+
+**Dashboard.** Today's calorie ring and macro bars, today's meals, habit flags, the last seven days for any macro against its goal, and the full history by day. Tap any meal to edit it in the same drawer.
+
+**Habits** are plain arithmetic over the last 7 finished days you logged, with no model involved, so every flag has a checkable reason: low protein (under 80% of goal on most logged days), high carbs (over 115%), high fat (over 120%), calories over (110%) or well under (70%, which usually means meals are missing). Fewer than 3 logged days shows no flags.
+
+**Account and settings.** iCloud sync status, daily goals with a calculator (Mifflin-St Jeor, can fill height, weight, age and sex from Apple Health), saving meals to Apple Health, the on-device model's status, CSV export, and delete all.
+
+## Apple frameworks, nothing else
+
+| Need | Framework |
 | --- | --- |
-| ![Entry detail](Screenshots/04-entry-detail.png) | ![Trends](Screenshots/05-trends.png) |
+| Camera | AVFoundation (`AVCaptureVideoDataOutput`, virtual multi-camera for close-up auto switching) |
+| Reading food | FoundationModels (`Attachment`, `@Generable`, `streamResponse`), iOS 27 |
+| Meal storage and sync | SwiftData mirrored to the CloudKit private database |
+| Goals sync | iCloud key-value storage (`NSUbiquitousKeyValueStore`) |
+| Health | HealthKit (write dietary energy, protein, carbs, fat; read body metrics) |
+| UI | SwiftUI, Liquid Glass chrome, Swift Charts, PhotosUI, `ShareLink` |
 
----
-
-## What it does
-
-- **Journal** — tap **+** and pick what you're logging from a fluid category menu,
-  or choose **Free write**. Picking a category opens a short, **skippable** guided
-  flow: a couple of tappable questions (with a free-text option) that help you
-  organize the entry. Or drop into a calm, full-screen **voice mode**: a living orb
-  pulses in time with your voice while it transcribes. Multiple frictionless entries
-  per day, auto-stamped to today. Transcription is **entirely on-device**
-  (`SpeechTranscriber`); nothing is sent anywhere.
-- **Quiet AI** — a free-written entry runs through Apple's on-device
-  **Foundation Models** with **Guided Generation** (`@Generable` / `@Guide`), which
-  returns a typed Swift struct (no JSON parsing). Its only job is to **file the
-  entry under one category and give it a clean title** — no ranking, no judgment,
-  no estimated numbers. Guided entries skip the model entirely (you already told it
-  what you're logging).
-- **Log** — a clean, Apple-Health-style history where each entry is colored and
-  classed by its single category, with your organized answers laid out in detail,
-  plus search and **Trends** over time (Swift Charts).
-- **ACTIVITY workout tracker** — a searchable exercise library (~190 movements,
-  each tagged with up to 2 primary + 2 accessory muscle groups). Log a workout by
-  picking sets/reps/weight, by just naming the movement, or by free-writing the
-  session and letting the on-device model parse it into structured exercises.
-- **STYL — "what you've been logging"** — a calm activity surface: how often each
-  category was logged, current streaks, recent entries, your measured Apple
-  Health lane, a muscle-balance read of what's been trained recently and what's
-  gone light, and an on-device "suggest a session" that fills the gaps. Neutral by
-  design — no standings, no scores.
-- **Apple Health (measured)** — connect HealthKit and your real, *measured*
-  activity, heart, and sleep data appears in its own clearly-attributed lane on
-  STYL — the only place an actual number is shown. An empty Health store (no watch,
-  no data) is a normal state and the lane is simply omitted.
-
-Nothing about the entry leaves the device until you've saved it. The on-device AI
-needs no key, HealthKit is read on-device, and **there is no external service at
-all**. Persistence and sync run entirely through your own private Apple CloudKit
-database, gated by Sign in with Apple.
-
----
-
-## One history, one dashboard
-
-The app has two surfaces and no seams between them.
-
-**LYFE** is a single chronological history of everything you have recorded: a
-thought you wrote, a meal, a night's sleep, a Hevy lifting session, a run off a
-watch, a workout you built here. Grouped by day, one row style throughout. You
-never have to remember which app a session came from in order to find it.
-
-**STYL** is a single dashboard over all of it: how recovered you are, what your
-training load is doing, what the analysis found, today's measured numbers, weekly
-volume by muscle, and what else you have been logging.
-
-There is deliberately no separate place for "synced" and "manual" data. A session
-you type in and the identical session synced from Hevy become the same
-`UnifiedWorkout`, are scored by the same code, and appear in the same figures. The
-journal adds what training data cannot see, which is nutrition, mind and social,
-so those sit alongside rather than on their own screen.
-
-Runs, rides, swims, lifting sessions, sleep, heart-rate variability and body
-composition all normalize into the same canonical types.
-
-### Connecting each source
-
-Connections live behind the link icon in STYL's toolbar.
-
-| Source | How | What you get |
-| --- | --- | --- |
-| **Apple Health** | One tap, automatic | Everything your iPhone, Apple Watch or any other app writes to Health: workouts, sleep stages, resting heart rate, HRV (SDNN), steps, energy, VO2 max, body composition. Apple Watch sessions arrive complete, with heart rate, power, running dynamics and the GPS route. |
-| **Hevy** | Paste an API key | Every workout with its exercises, sets, reps, weights and RPE. Backfills the full history, then switches to Hevy's change feed for incremental sync. Get the key from hevy.com, Settings, Developer. It requires Hevy Pro. |
-| **Garmin** | Import `.fit` files | The full session: GPS track, second-by-second heart rate, power, cadence, running dynamics, plus sleep stages, Body Battery, stress and HRV status. |
-
-### Why Garmin is file import rather than a login
-
-Garmin has no public API an app like this can use. The Connect Developer Program
-is paused to new applicants, and even with access it requires a client secret at
-token exchange, a webhook backend to receive data, and it discards data after
-seven days, none of which fits a CloudKit-only app with no server. The unofficial
-route through Garmin's own login was closed in March 2026 by TLS fingerprinting,
-triggers account-level lockouts, and violates Garmin's terms.
-
-The `.fit` file is the better path anyway. Garmin mirrors only twelve categories
-into Apple Health and explicitly withholds the GPS track and the per-workout
-heart-rate series, so a Garmin ride read from Health cannot support aerobic
-decoupling, normalized power or zone analysis. The `.fit` file the watch recorded
-has all of it, needs no account, no key and no server, and the app decodes it
-directly.
-
-To export one session, open the activity on Garmin Connect on the web, use the
-gear menu and choose **Export Original**. To export everything, request your
-account data export from Garmin and import the `.fit` files from the archive.
-
-### What it computes
-
-Every formula is published and cited inline in the source.
-
-**Training load.** Normalized Power and Training Stress Score (Coggan), pace-based
-stress with grade adjustment from Minetti's measured cost of running on a
-gradient, exponential TRIMP (Morton and Banister) with the sex-specific
-coefficients, Edwards zone TRIMP, and session RPE (Foster). Each session is scored
-from the best signal it carried, and the result records which method was used and
-how much it can be trusted.
-
-**Fitness and fatigue.** Banister's two-component model: a 42-day and a 7-day
-exponentially weighted average of daily load, and their difference as form. Load
-ramp uses the exponentially weighted acute-to-chronic ratio and also reports an
-uncoupled version, because the standard construction includes the recent window
-inside its own baseline. Foster's monotony and strain. Intensity distribution
-against the roughly 80 percent low-intensity pattern the polarized-training
-literature describes.
-
-**Endurance.** Aerobic decoupling, efficiency factor trends, mean-maximal curves,
-the two-parameter critical-speed model, Riegel race prediction with an explicit
-extrapolation limit, and Daniels-Gilbert VDOT.
-
-**Strength.** Estimated one-rep max as the median of five published formulas
-(Epley, Brzycki, Lombardi, Mayhew, O'Conner), refused above 12 reps because all of
-them are fitted on low-rep sets. Weekly sets per muscle against the hypertrophy
-dose-response range, plateau detection by Mann-Kendall, personal records, and
-balance ratios that are omitted when the data cannot actually distinguish both
-sides.
-
-**Recovery.** Baselines built on the median and scaled median absolute deviation
-rather than mean and standard deviation, since the outlier you want to detect
-drags a mean. HRV analysed on the log scale, as the literature does. Changes
-reported only past the smallest worthwhile change derived from the person's own
-spread. Sleep Regularity Index at minute resolution. Resting-heart-rate shifts by
-CUSUM.
-
-**Relationships.** A search across physiologically plausible pairs at zero to
-three day lags, guarded three ways: Bartlett effective sample size for
-autocorrelation, a Benjamini-Hochberg false-discovery-rate correction across the
-whole search, and rank correlation by default. Nothing is described as a cause.
-
-### How it stays honest
-
-Personal health data makes it easy to produce confident nonsense, so the rules are
-explicit:
-
-- Every metric is optional and stays optional. An unmeasured value is absent, not
-  zero.
-- Every insight carries its evidence, so a claim can be checked rather than
-  believed.
-- Confidence follows the evidence. Load insights are capped by the weakest scoring
-  method in use, and a correlation in one person's data never exceeds "moderate".
-- Personal anchors report whether they were entered, observed, or estimated from a
-  population formula, and anything derived from an estimate says so.
-- Garmin's HRV (RMSSD) is stored separately from Apple's (SDNN). They measure
-  different things and there is no valid conversion, so they never share a
-  baseline.
-- No scores, no grades, no injury prediction.
-
----
+No accounts, no servers, no API keys, no third-party packages. The iCloud account signed in on the device owns the data.
 
 ## Requirements
 
-- **Xcode 26+** and the **iOS 26 SDK**.
-- An iPhone (or simulator) on **iOS 26**. The on-device classification of
-  free-written entries requires a device with **Apple Intelligence** enabled;
-  without it the app still saves entries (and guided, category-picked entries work
-  fully), filing free-writes automatically once the model is available.
-- An **iCloud account** signed in on the device or simulator (for CloudKit sync).
-  No third-party account, no server, and nothing to sign up for.
-
----
+- Xcode 27, iOS 27 SDK. The deployment target is iOS 27 because image input to Foundation Models (`Attachment`) is iOS 27 only.
+- An iPhone with Apple Intelligence turned on for photo logging. Without it the app still works through search, the common foods table and manual entry; with a text-only model, typed estimates still work.
+- The iOS 27 Simulator runs the UI, but generation needs a host Mac on macOS 27. On macOS 26 the simulator reports the model available and then fails each request (`ModelManagerError 1001`), which the app shows as "Couldn't read that" with Try Again and Search.
 
 ## Setup
 
-There are **no secrets to configure**. Everything runs on first-party Apple
-frameworks, so setup is entirely capabilities in Xcode.
+1. Open `LYFESTYLE.xcodeproj` and pick your team under Signing & Capabilities.
+2. Keep or change the bundle ID (`Moments.LYFESTYLE`) and the iCloud container (`iCloud.Moments.LYFESTYLE`). If you change the container, update `LYFESTYLEApp.cloudContainerID` to match.
+3. Capabilities used (already in `LYFESTYLE.entitlements`): iCloud with CloudKit and key-value storage, Push Notifications (CloudKit uses silent pushes to sync), Background Modes > Remote notifications, HealthKit.
+4. Run on a device. The first launch in the Development environment creates the CloudKit schema automatically.
+5. Before shipping, deploy the schema to Production in the CloudKit Console (Schema > Deploy Schema Changes).
 
-### 1. Enable the app's capabilities
+Nothing needs a secret. If an old `LYFESTYLE/Secrets.plist` from the previous app is still on disk, it is unused and can be deleted.
 
-In Xcode, select the `LYFESTYLE` target → **Signing & Capabilities** and confirm
-these are present (already declared in `LYFESTYLE/LYFESTYLE.entitlements`, but a
-real device build needs your Apple Developer team enabled for each):
+## CloudKit record schema
 
-| Capability | Purpose |
+SwiftData's CloudKit mirroring writes one record per meal to the private database, default zone `com.apple.coredata.cloudkit.zone`:
+
+**Record type `CD_MealEntry`**
+
+| Field | CloudKit type | Swift | Notes |
+| --- | --- | --- | --- |
+| `CD_id` | String | `UUID` | Stable across devices; prefix of the Apple Health sync identifiers |
+| `CD_loggedAt` | Date/Time | `Date` | When the meal was eaten; meal type (breakfast, lunch, dinner, snack) is derived from it, never stored |
+| `CD_itemsData` | Bytes | `Data` | `[FoodItem]` as a binary property list |
+| `CD_entityName` | String | | Added by SwiftData |
+
+Each food inside `CD_itemsData` uses one-letter keys to stay small:
+
+| Key | Meaning |
 | --- | --- |
-| **iCloud → CloudKit** | container `iCloud.Moments.LYFESTYLE`, the private database that stores every entry |
-| **Sign in with Apple** | gates the app; the signed-in iCloud account owns the data |
-| **HealthKit** | read-only, powers the measured lane on STYL |
+| `n` | name |
+| `p` | portion, like "1 cup" (omitted when empty) |
+| `s` | servings multiplier (omitted when 1) |
+| `k`, `r`, `c`, `f` | kcal, protein g, carbs g, fat g for one portion, rounded |
 
-The Simulator runs CloudKit and Sign in with Apple without extra provisioning as
-long as it's signed into an iCloud account.
+**iCloud key-value storage**: `goals.v1` (daily goals) and `bodyProfile.v1` (calculator inputs), both JSON.
 
-### 2. The CloudKit schema
+**Apple Health**: each meal writes up to four quantity samples (dietary energy, protein, carbohydrates, total fat) with `HKMetadataKeyFoodType` set to the meal title and `HKMetadataKeySyncIdentifier` set to `<meal id>.<macro>`, so edits replace and deletes remove them.
 
-Nothing to create by hand. CloudKit auto-creates the `Entry` record type (and its
-fields) in the **Development** environment the first time the app saves an entry.
-See [CloudKit schema](#cloudkit-schema) below for the field list. When you're ready
-to ship, deploy the schema from Development to Production in the
-[CloudKit Console](https://icloud.developer.apple.com/dashboard/).
-
-### 3. Build & run
-
-Open `LYFESTYLE.xcodeproj` in Xcode and run on an iOS 26 simulator or device
-signed into iCloud. There are no external Swift packages to resolve for
-persistence, everything is `CloudKit`/`CloudKit.framework` from the SDK.
-
----
-
-## Architecture
+## Project layout
 
 ```
 LYFESTYLE/
-├── DesignSystem/      Solarized palette, type helpers, logo, InsightCategory, shared components
-├── Models/            JournalEntry (+ EntryField), CategoryQuestionTemplate, Trends,
-│                      Workout / Exercise models + @Generable EntryClassification
-├── Services/          InsightEngine (Foundation Models), SpeechService (on-device voice),
-│                      CloudKitService (CRUD against the private database),
-│                      AuthManager (Sign in with Apple), LocalStore (offline cache),
-│                      JournalStore (pipeline orchestrator)
-└── Features/          Root · Auth · Journal · Log · Trends · Search · Settings
+  App/            entry point, SwiftData + CloudKit container
+  DesignSystem/   Solarized palette, type, logo, components, Macro tokens, formatting
+  Models/         FoodItem/Nutrition, MealEntry (@Model), Goals, FoodScan (@Generable), CommonFoods
+  Services/       FoodAnalyzer, CameraController, HealthService, GoalStore, MealLog, HabitEngine, MealExport
+  Features/
+    Camera/       the main screen, preview, shutter
+    Review/       the drawer, item editor, food search
+    Dashboard/    totals, habits, chart, history
+    Settings/     account, goals, goal calculator
+    Onboarding/
+Verification/     logic checks compiled against the app's own sources
 ```
 
-- **Quiet on-device AI** — `InsightEngine` checks `SystemLanguageModel.default.availability`
-  and runs each free-written entry through a focused `LanguageModelSession` with
-  greedy sampling. Its only output is the typed `EntryClassification` (one category
-  + a clean title). Guided entries are organized by the user and skip the model.
-  Free-written workout sessions get the same treatment: the model parses them into
-  structured exercises against the on-device exercise library.
-- **Offline-safe** — entries are saved locally the instant they're created and
-  never lost. The pipeline (save → push raw → classify if needed → sync) retries on
-  foreground, on reconnect, and when the model becomes available. The CloudKit
-  private database stays authoritative; a file-based cache powers instant, offline
-  rendering.
-- **Native everything** — `NavigationStack`, `TabView`, `List` + `.searchable` +
-  `.swipeActions` + `.refreshable`, `SignInWithAppleButton`, `CloudKit`, Swift
-  Charts, and Liquid Glass (`.glassEffect` / `.glass` / `.glassProminent`) on
-  chrome only.
+## Verification
 
-See [`DECISIONS.md`](DECISIONS.md) for the rationale behind the schema, the scoring
-system, and the architecture forks.
+```
+Verification/run.sh
+```
 
-### Privacy
-
-The microphone and speech transcription are used **only** while you record, and
-transcription happens **entirely on-device**. The classification of free-written
-entries, and the parsing of free-written workouts, is on-device too. Only your raw
-text and organized entries sync, and they sync to your own **private CloudKit
-database**, scoped automatically to your signed-in iCloud account. Apple has no
-special access beyond standard iCloud infrastructure, and no other party (not even
-us) can read it.
-
----
-
-## CloudKit schema
-
-> Historical reference is also kept at [`supabase/schema.sql`](supabase/schema.sql)
-> (now just documentation, there is no SQL anymore).
-
-There is no database to create by hand. CloudKit auto-creates the schema below in
-the **Development** environment the first time the app saves a record, scoped to
-the container `iCloud.Moments.LYFESTYLE`, **private database**. One record type,
-`Entry`, one record per journal entry (its `recordName` is the entry's UUID):
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `rawText` | String | the raw typed or transcribed text |
-| `source` | String | `text` or `voice` |
-| `status` | String | `pending` / `processing` / `processed` / `failed` |
-| `schemaVersion` | Int | currently `6` |
-| `category` | String, optional | `NUTRITION` / `ACTIVITY` / `SLEEP` / `HEALTH` / `MIND` / `SOCIAL`, or absent for a free thought with nothing trackable |
-| `subtag` | String, optional | refinement of the category (e.g. SOCIAL's relationship, a meal type) |
-| `title` | String, optional | clean, neutral display title |
-| `entryDate` | Date | the day the entry belongs to |
-| `createdAt` | Date | when the record was created |
-| `userID` | String, optional | local tag only, CloudKit already scopes the private database to the signed-in iCloud account |
-| `fields` | JSON blob | the user's organized answers |
-| `workout` | JSON blob, optional | structured exercises/sets/reps/weight, ACTIVITY entries only |
-
-### `UnifiedWorkout` and `DailySnapshot`
-
-The TRAIN feature adds two more record types, also auto-created, also in the
-private database.
-
-`UnifiedWorkout`, one record per training session (`recordName` is the unified id
-with its colon replaced):
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `payload` | JSON blob | the whole session summary and, for lifting, the full set-by-set breakdown |
-| `unifiedID` | String | `<source>:<foreign id>`, stable across syncs |
-| `startDate` | Date | |
-| `day` | Date | start of the calendar day, for grouping |
-| `sport` | String | the normalized sport |
-| `source` | String | `garmin` / `hevy` / `appleHealth` / `manual` |
-
-`DailySnapshot`, one record per calendar day (`recordName` is `day_YYYY-MM-DD`):
-
-| Field | Type | Notes |
-| --- | --- | --- |
-| `payload` | JSON blob | sleep, heart rate, HRV, movement, body composition, Garmin readiness metrics |
-| `date` | Date | start of the day |
-
-Sample series and GPS routes are deliberately **not** synced. A year of sessions
-with series is tens of megabytes, they are only needed for within-session analysis
-on the device holding the original, and everything derived from them (normalized
-power, aerobic decoupling) is already cached on the record.
-
-
-No Row Level Security to configure, no indexes to create by hand, no
-`profiles`/`insights`/`check_ins` tables. The private database is inherently
-scoped to one iCloud account, so every record is already private to its owner.
-
----
-
-## Tech
-
-Swift 6 · SwiftUI · `@Observable` · Foundation Models · Speech (`SpeechAnalyzer`)
-· AVFoundation · AuthenticationServices · HealthKit · CloudKit · Swift Charts ·
-Liquid Glass. No third-party dependencies, including the FIT decoder, which is
-written against the published protocol specification rather than pulling in
-Garmin's proprietary-licensed SDK.
-
-Correctness checks live in [`Verification/`](Verification/): the statistics are
-cross-checked against SciPy, the FIT decoder against Garmin's own reference SDK,
-and the whole analysis pipeline against a generated history with planted signals.
+Compiles the pure-logic sources (storage encoding, nutrition math, goal calculator, habit rules, CSV export, food search and the bundled table's internal consistency) with a set of hand-worked checks, and runs them on the Mac. It needs no simulator.
