@@ -10,9 +10,22 @@
 		7784462C2FD6651100F5121F /* LYFESTYL.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LYFESTYL.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		7784462F2FD6651100F5ABCD /* Exceptions for "LYFESTYL" folder in "LYFESTYL" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 7784462B2FD6651100F5121F /* LYFESTYL */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		7784462E2FD6651100F5121F /* LYFESTYL */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				7784462F2FD6651100F5ABCD /* Exceptions for "LYFESTYL" folder in "LYFESTYL" target */,
+			);
 			path = LYFESTYL;
 			sourceTree = "<group>";
 		};
@@ -259,15 +272,17 @@
 				DEVELOPMENT_TEAM = 4Q768JXR89;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LYFESTYL/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
-				INFOPLIST_KEY_NSCameraUsageDescription = "LYFESTYL uses the camera to see what you are eating. Frames are analyzed on this iPhone and never saved.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "LYFESTYL can read your height, weight, age, and sex from Apple Health to suggest daily calorie and macro goals.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "LYFESTYL uses the camera to photograph your meals and, if you choose, your profile photo. Meal photos are read on this iPhone and never saved.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "LYFESTYL can read your height, weight, age, and sex from Apple Health to suggest daily calorie and macro goals. They stay on this iPhone.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "LYFESTYL saves the calories, protein, carbs, and fat you log to Apple Health.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Light;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -281,6 +296,8 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
@@ -296,15 +313,17 @@
 				DEVELOPMENT_TEAM = 4Q768JXR89;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = LYFESTYL/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.healthcare-fitness";
-				INFOPLIST_KEY_NSCameraUsageDescription = "LYFESTYL uses the camera to see what you are eating. Frames are analyzed on this iPhone and never saved.";
-				INFOPLIST_KEY_NSHealthShareUsageDescription = "LYFESTYL can read your height, weight, age, and sex from Apple Health to suggest daily calorie and macro goals.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "LYFESTYL uses the camera to photograph your meals and, if you choose, your profile photo. Meal photos are read on this iPhone and never saved.";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "LYFESTYL can read your height, weight, age, and sex from Apple Health to suggest daily calorie and macro goals. They stay on this iPhone.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "LYFESTYL saves the calories, protein, carbs, and fat you log to Apple Health.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
+				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Light;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -318,6 +337,8 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;

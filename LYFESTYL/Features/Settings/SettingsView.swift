@@ -37,21 +37,19 @@ struct SettingsView: View {
                 if health.isAvailable { healthSection(enabled: $health.isWritingEnabled) }
                 if !analyzer.status.canReadPhotos { aiSection }
                 dataSection
+                linksSection
                 aboutSection
             }
             .scrollContentBackground(.hidden)
             .background(.appBackground)
             .contentMargins(.top, 4, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)
+            .keyboardDoneButton()
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) { NavHeaderTitle("Account") }
                     .sharedBackgroundVisibility(.hidden)
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(role: .close) { dismiss() }
-                }
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") { focused = nil; editingName = false }
                 }
             }
             .confirmationDialog("Delete every meal?", isPresented: $confirmDeleteAll, titleVisibility: .visible) {
@@ -165,6 +163,7 @@ struct SettingsView: View {
                 preview: SharePreview("LYFESTYL Meals.csv")
             ) {
                 Label("Export Meals", systemImage: "square.and.arrow.up")
+                    .foregroundStyle(meals.isEmpty ? Color.appTextMuted : Color.appAccent)
             }
             .disabled(meals.isEmpty)
 
@@ -177,6 +176,24 @@ struct SettingsView: View {
             .disabled(meals.isEmpty)
         }
     }
+
+    private var linksSection: some View {
+        Section {
+            Link(destination: Self.support) {
+                Label("Support", systemImage: "questionmark.circle")
+            }
+            Link(destination: Self.privacy) {
+                Label("Privacy Policy", systemImage: "hand.raised")
+            }
+            Link(destination: Self.terms) {
+                Label("Terms of Use", systemImage: "doc.text")
+            }
+        }
+    }
+
+    private static let support = URL(string: "https://lyfestyl.1moments.com/support")!
+    private static let privacy = URL(string: "https://lyfestyl.1moments.com/privacy")!
+    private static let terms = URL(string: "https://lyfestyl.1moments.com/terms")!
 
     private var aboutSection: some View {
         Section {
@@ -192,6 +209,9 @@ struct SettingsView: View {
                     )
                     .accessibilityLabel("LYFESTYL")
                 Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0")
+                    .font(.footnote)
+                    .foregroundStyle(.appTextMuted)
+                Text("Estimates, not medical advice.")
                     .font(.footnote)
                     .foregroundStyle(.appTextMuted)
             }

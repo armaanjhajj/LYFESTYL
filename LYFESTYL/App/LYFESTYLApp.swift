@@ -45,8 +45,13 @@ struct LYFESTYLApp: App {
             return container
         }
         let local = ModelConfiguration(schema: schema, cloudKitDatabase: .none)
+        if let container = try? ModelContainer(for: schema, configurations: local) {
+            return container
+        }
+        // Last resort: a store for this session only, so the app still opens.
+        let memory = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
         do {
-            return try ModelContainer(for: schema, configurations: local)
+            return try ModelContainer(for: schema, configurations: memory)
         } catch {
             fatalError("Could not open the meal store: \(error)")
         }

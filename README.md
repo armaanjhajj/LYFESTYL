@@ -47,9 +47,13 @@ CloudKit record `CD_MealEntry`
 | `CD_id` | String | meal id |
 | `CD_loggedAt` | Date | when logged |
 | `CD_itemsData` | Bytes | foods, binary plist |
+| `CD_entityName` | String | added by SwiftData |
+
+Deploy the schema to Production in the CloudKit console before TestFlight.
 
 - Food keys: `n` name, `p` portion, `s` servings, `k` kcal, `r` protein, `c` carbs, `f` fat
-- iCloud key-value: `goals.v1`, `bodyProfile.v1`, `profile.name`, `profile.photo` (256 px)
+- iCloud key-value: `goals.v1`, `profile.name`, `profile.photo` (256 px)
+- On device only: `bodyProfile.v1` (can hold Apple Health values, which may not go to iCloud)
 - Health: energy, protein, carbs, fat per meal, sync id `<meal id>.<macro>`
 
 ## Layout
