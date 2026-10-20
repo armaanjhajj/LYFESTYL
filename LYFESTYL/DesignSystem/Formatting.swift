@@ -15,13 +15,13 @@ nonisolated enum Formatting {
 
     /// "1,240" (no unit), calories always read as whole numbers.
     static func calories(_ value: Double) -> String {
-        guard value.isFinite else { return "--" }
+        guard value.isFinite, abs(value) < 1e12 else { return "--" }
         return Int(value.rounded()).formatted(.number.grouping(.automatic))
     }
 
     /// "92 g", whole grams. Precision beyond that is noise for an estimate.
     static func grams(_ value: Double, includeUnit: Bool = true) -> String {
-        guard value.isFinite else { return "--" }
+        guard value.isFinite, abs(value) < 1e12 else { return "--" }
         let number = Int(value.rounded()).formatted(.number.grouping(.automatic))
         return includeUnit ? "\(number) g" : number
     }

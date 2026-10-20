@@ -84,6 +84,9 @@ func food(_ name: String, _ kcal: Double, _ p: Double, _ c: Double, _ f: Double,
     check(lines.count == 2, "header plus one row")
     check(lines[1].contains("\"Chicken, \"\"spicy\"\"\""), "commas and quotes are escaped")
     check(lines[1].hasSuffix(",300,30,10,12"), "numbers are whole and in column order")
+    check(lines[1].contains(",13:00:00,"), "times are local, not UTC")
+    let half = MealExport(rows: [(day(1), [food("Rice", 200, 4, 44, 0, servings: 1.5)])]).csv
+    check(half.contains(",1.5,"), "servings use a period in every language")
 
     print("Search")
     check(!CommonFoods.search("rice").isEmpty, "rice finds results")

@@ -93,10 +93,15 @@ extension FoodItem: Codable {
         try c.encode(name, forKey: .name)
         if !portion.isEmpty { try c.encode(portion, forKey: .portion) }
         if servings != 1 { try c.encode(servings, forKey: .servings) }
+        // Whole calories, grams to a tenth: what a label shows.
         try c.encode(base.calories.rounded(), forKey: .calories)
-        try c.encode(base.protein.rounded(), forKey: .protein)
-        try c.encode(base.carbs.rounded(), forKey: .carbs)
-        try c.encode(base.fat.rounded(), forKey: .fat)
+        try c.encode(Self.tenth(base.protein), forKey: .protein)
+        try c.encode(Self.tenth(base.carbs), forKey: .carbs)
+        try c.encode(Self.tenth(base.fat), forKey: .fat)
+    }
+
+    private static func tenth(_ grams: Double) -> Double {
+        (grams * 10).rounded() / 10
     }
 }
 
