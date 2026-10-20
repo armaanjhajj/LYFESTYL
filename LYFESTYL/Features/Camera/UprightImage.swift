@@ -2,27 +2,33 @@
 //  UprightImage.swift
 //  LYFESTYL
 //
-//  Library photos arrive as encoded data with an EXIF orientation. Redraw them
-//  upright and at the same size cap as camera frames, entirely in memory.
+//  Library photos arrive as encoded data with an EXIF orientation. ImageIO
+//  decodes them upright and already shrunk to the camera frames' size cap, so
+//  a 48 MP HEIC never sits in memory at full size. All in memory, off the
+//  main thread.
 //
 
-import UIKit
+import Foundation
+import ImageIO
 
-enum UprightImage {
+nonisolated enum UprightImage {
     static let maxDimension: CGFloat = 2560
 
-    static func make(from data: Data) -> CGImage? {
-        guard let image = UIImage(data: data) else { return nil }
-        let size = image.size
-        let longest = max(size.width, size.height)
-        guard longest > 0 else { return nil }
-        let scale = min(1, maxDimension / longest)
-        let target = CGSize(width: (size.width * scale).rounded(), height: (size.height * scale).rounded())
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        format.opaque = true
-        return UIGraphicsImageRenderer(size: target, format: format)
-            .image { _ in image.draw(in: CGRect(origin: .zero, size: target)) }
-            .cgImage
+    @concurrent
+    static func make(from data: Data) async -> CGImage? {
+        downsample(data, maxPixelSize: maxDimension)
+    }
+
+    /// Upright, with the longest side at most `maxPixelSize`.
+    static func downsample(_ data: Data, maxPixelSize: CGFloat) -> CGImage? {
+        let sourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let source = CGImageSourceCreateWithData(data as CFData, sourceOptions) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+        ]
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
     }
 }

@@ -7,18 +7,25 @@
 //
 
 import Foundation
+import OSLog
 import SwiftData
 
 struct MealLog {
     let context: ModelContext
     let health: HealthService
 
-    func log(_ items: [FoodItem], at date: Date) {
+    /// False if the meal couldn't be saved, so the caller doesn't celebrate.
+    @discardableResult
+    func log(_ items: [FoodItem], at date: Date) -> Bool {
         let entry = MealEntry(loggedAt: date, items: items)
         context.insert(entry)
-        save()
+        guard save() else {
+            context.delete(entry)
+            return false
+        }
         let id = entry.id, title = entry.title, nutrition = entry.nutrition
         Task { await health.save(mealID: id, at: date, title: title, nutrition: nutrition) }
+        return true
     }
 
     func update(_ entry: MealEntry, items: [FoodItem], at date: Date) {
@@ -42,7 +49,16 @@ struct MealLog {
         delete(all)
     }
 
-    private func save() {
-        try? context.save()
+    @discardableResult
+    private func save() -> Bool {
+        do {
+            try context.save()
+            return true
+        } catch {
+            Self.logger.error("Saving meals failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
     }
+
+    private static let logger = Logger(subsystem: "Moments.LYFESTYL", category: "MealLog")
 }

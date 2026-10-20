@@ -25,7 +25,7 @@ struct ItemEditorView: View {
                 if item.needsCheck || !item.alternatives.isEmpty {
                     alternativesSection(item)
                 }
-                FoodFields(food: $draft.items[index].food)
+                FoodFields(food: food(fallback: item.food))
                 Section {
                     NavigationLink(value: ReviewRoute.search(.replace(itemID))) {
                         Label("Find a Different Food", systemImage: "magnifyingglass")
@@ -36,6 +36,7 @@ struct ItemEditorView: View {
             .background(.appBackground)
             .contentMargins(.top, 4, for: .scrollContent)
             .scrollDismissesKeyboard(.interactively)
+            .keyboardDoneButton()
             .capsNavigationTitle(item.food.name)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -51,6 +52,18 @@ struct ItemEditorView: View {
             // Removed or replaced while this screen was on the stack.
             Color.appBackground
         }
+    }
+
+    /// Bound by id, not position: a field that commits after the item was
+    /// removed (focus leaving on the trash tap) writes nowhere instead of
+    /// into the wrong item or past the end of the list.
+    private func food(fallback: FoodItem) -> Binding<FoodItem> {
+        Binding(
+            get: { draft.index(of: itemID).map { draft.items[$0].food } ?? fallback },
+            set: { new in
+                if let index = draft.index(of: itemID) { draft.items[index].food = new }
+            }
+        )
     }
 
     @ViewBuilder
@@ -148,12 +161,6 @@ struct FoodFields: View {
                 Text("Total \(Formatting.calories(n.calories)) cal · \(Formatting.macroLine(protein: n.protein, carbs: n.carbs, fat: n.fat))")
             }
         }
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Done") { focused = nil }
-            }
-        }
     }
 
     /// A slider range that suits the food: at least a typical maximum, and
@@ -201,6 +208,8 @@ struct ManualFoodView: View {
         }
         .scrollContentBackground(.hidden)
         .background(.appBackground)
+        .scrollDismissesKeyboard(.interactively)
+        .keyboardDoneButton()
         .capsNavigationTitle("New Food")
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {

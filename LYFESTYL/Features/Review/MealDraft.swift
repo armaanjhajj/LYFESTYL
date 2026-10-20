@@ -74,13 +74,23 @@ final class MealDraft: Identifiable {
 
     var canRetry: Bool { image != nil }
     var nutrition: Nutrition { items.map(\.food.nutrition).total }
-    var foods: [FoodItem] { items.map(\.food) }
+    /// What gets logged. A name cleared while editing logs as "Food".
+    var foods: [FoodItem] {
+        items.map { item in
+            var food = item.food
+            food.name = food.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            if food.name.isEmpty { food.name = "Food" }
+            return food
+        }
+    }
 
     // MARK: - Analysis
 
     func analyze(with analyzer: FoodAnalyzer) {
         guard let image else { return }
         task?.cancel()
+        // Apple Intelligence may have finished downloading since launch.
+        analyzer.refresh()
         guard analyzer.status.canReadPhotos else {
             if case .unavailable(let message) = analyzer.status {
                 phase = .search(message)
@@ -113,7 +123,10 @@ final class MealDraft: Identifiable {
 
     private func apply(_ result: [DraftItem]) {
         if result.isEmpty {
+            // A retry that finds nothing starts clean rather than carrying the
+            // previous attempt's foods into whatever gets picked next.
             suggestions = []
+            items = []
             phase = .search("No food found in that photo. Search for it instead.")
         } else if result.allSatisfy(\.needsCheck) {
             // Nothing it's sure of: offer its guesses rather than pretending.

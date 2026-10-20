@@ -33,11 +33,14 @@ struct CameraScreen: View {
     @State private var showSettings = false
     @State private var photoItem: PhotosPickerItem?
     @State private var focusPoint: CGPoint?
-    @State private var toast: String?
+    @State private var toast: Toast?
     @State private var shutterTaps = 0
     @State private var logs = 0
     /// Counts frames taken, for the shutter flash.
     @State private var frames = 0
+    /// Set the instant the shutter fires, so a second tap (or Camera Control)
+    /// during the frame grab can't start a second draft.
+    @State private var capturing = false
 
     init(isActive: Bool) {
         self.isActive = isActive
@@ -66,7 +69,13 @@ struct CameraScreen: View {
         .environment(\.colorScheme, .dark) // camera chrome is glass over video
         .statusBarHidden() // like the system Camera, the feed runs edge to edge
         .sheet(item: $draft, onDismiss: { endDraft() }) { draft in
-            ReviewDrawer(draft: draft, onLog: { log(draft) }, onDelete: {}, onDismiss: { self.draft = nil })
+            ReviewDrawer(
+                draft: draft,
+                isPresented: { self.draft === draft },
+                onLog: { log(draft) },
+                onDelete: {},
+                onDismiss: { self.draft = nil }
+            )
                 .environment(\.colorScheme, .light)
         }
         .sheet(isPresented: $showDashboard) {
@@ -179,6 +188,7 @@ struct CameraScreen: View {
                     .buttonStyle(.glass)
                     .buttonBorderShape(.circle)
                     .accessibilityLabel("Account and settings")
+                    .accessibilityShowsLargeContentViewer()
 
                     Spacer()
                     caloriesReadout
@@ -192,10 +202,14 @@ struct CameraScreen: View {
                     .buttonStyle(.glass)
                     .buttonBorderShape(.circle)
                     .accessibilityLabel("Dashboard")
+                    .accessibilityShowsLargeContentViewer()
                 }
             }
+            // Fixed-size controls over the feed, like the system Camera. Long
+            // press shows them large at accessibility sizes.
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             if let toast {
-                Label(toast, systemImage: "checkmark.circle.fill")
+                Label(toast.text, systemImage: toast.failed ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.appOnMedia)
                     .padding(.horizontal, 14)
@@ -250,7 +264,7 @@ struct CameraScreen: View {
             }
             GlassEffectContainer(spacing: 24) {
                 HStack(spacing: 44) {
-                    PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
+                    PhotosPicker(selection: $photoItem, matching: .images) {
                         Image(systemName: "photo.on.rectangle")
                             .font(.title3)
                             .frame(width: 52, height: 52)
@@ -258,6 +272,7 @@ struct CameraScreen: View {
                     .buttonStyle(.glass)
                     .buttonBorderShape(.circle)
                     .accessibilityLabel("Choose a photo")
+                    .accessibilityShowsLargeContentViewer()
 
                     ShutterButton(action: snap)
                         .disabled(camera.state != .running)
@@ -270,8 +285,10 @@ struct CameraScreen: View {
                     .buttonStyle(.glass)
                     .buttonBorderShape(.circle)
                     .accessibilityLabel("Search for a food")
+                    .accessibilityShowsLargeContentViewer()
                 }
             }
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         }
         .foregroundStyle(.appOnMedia)
         .padding(.bottom, 24)
@@ -281,18 +298,28 @@ struct CameraScreen: View {
     // MARK: - Actions
 
     private func snap() {
-        guard draft == nil else { return }
+        guard draft == nil, !capturing else { return }
+        capturing = true
         shutterTaps += 1
         Task {
-            guard let image = await camera.snapshot() else { return }
+            defer { capturing = false }
+            guard let image = await camera.snapshot() else {
+                showToast("Couldn't take the photo. Try again.", failed: true)
+                return
+            }
             begin(with: image)
         }
     }
 
     private func importPhoto(_ item: PhotosPickerItem) async {
-        guard draft == nil,
-              let data = try? await item.loadTransferable(type: Data.self),
-              let image = UprightImage.make(from: data) else { return }
+        guard draft == nil, !capturing else { return }
+        capturing = true
+        defer { capturing = false }
+        guard let data = try? await item.loadTransferable(type: Data.self),
+              let image = await UprightImage.make(from: data) else {
+            showToast("Couldn't open that photo.", failed: true)
+            return
+        }
         begin(with: image)
     }
 
@@ -306,7 +333,10 @@ struct CameraScreen: View {
     private func log(_ draft: MealDraft) {
         let foods = draft.foods
         guard !foods.isEmpty else { return }
-        MealLog(context: context, health: health).log(foods, at: draft.loggedAt)
+        guard MealLog(context: context, health: health).log(foods, at: draft.loggedAt) else {
+            showToast("Couldn't save. Try again.", failed: true)
+            return
+        }
         logs += 1
         self.draft = nil
         showToast("Logged \(Formatting.calories(foods.nutrition.calories)) cal")
@@ -327,11 +357,18 @@ struct CameraScreen: View {
         }
     }
 
-    private func showToast(_ text: String) {
-        toast = text
+    private struct Toast: Equatable {
+        let id = UUID()
+        let text: String
+        let failed: Bool
+    }
+
+    private func showToast(_ text: String, failed: Bool = false) {
+        let shown = Toast(text: text, failed: failed)
+        toast = shown
         Task {
             try? await Task.sleep(for: .seconds(2.2))
-            if toast == text { toast = nil }
+            if toast == shown { toast = nil }
         }
     }
 }
@@ -340,6 +377,10 @@ struct CameraScreen: View {
 /// moment it closes for any reason.
 struct ReviewDrawer: View {
     let draft: MealDraft
+    /// Whether the camera still shows this draft. A sheet presented while the
+    /// photo picker is still closing gets a stray disappear; releasing then
+    /// would cancel the analysis of the photo just picked.
+    let isPresented: () -> Bool
     let onLog: () -> Void
     let onDelete: () -> Void
     let onDismiss: () -> Void
@@ -358,6 +399,6 @@ struct ReviewDrawer: View {
             .onAppear {
                 if case .search = draft.phase { detent = .large }
             }
-            .onDisappear { draft.release() }
+            .onDisappear { if !isPresented() { draft.release() } }
     }
 }

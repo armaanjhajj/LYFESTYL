@@ -79,9 +79,14 @@ struct ReviewSheet: View {
         }
     }
 
+    private var isFailed: Bool {
+        if case .failed = draft.phase { true } else { false }
+    }
+
     @ViewBuilder
     private var trailingActions: some View {
-        if draft.canRetry, draft.phase != .analyzing {
+        // The failure screen has its own Try Again.
+        if draft.canRetry, draft.phase != .analyzing, !isFailed {
             Button("Retry", systemImage: "arrow.clockwise") {
                 path.removeAll()
                 draft.analyze(with: analyzer)
@@ -358,7 +363,7 @@ struct NutritionSummary: View {
         VStack(spacing: 18) {
             VStack(spacing: 0) {
                 Text(Formatting.calories(nutrition.calories))
-                    .font(.system(size: 60, weight: .black))
+                    .numberFont(size: 60, weight: .black)
                     .foregroundStyle(.appTextEmphasis)
                     .contentTransition(.numericText(value: nutrition.calories))
                 Text(caption).sectionHeader(color: .appTextMuted)
@@ -381,6 +386,9 @@ struct NutritionSummary: View {
                     )
                 }
             }
+            // Four rings fit across at any size up to this; the whole summary
+            // reads out as one line for VoiceOver.
+            .dynamicTypeSize(...DynamicTypeSize.xxLarge)
         }
         .frame(maxWidth: .infinity)
         .monospacedDigit()

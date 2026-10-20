@@ -167,12 +167,15 @@ struct CardHeader: View {
     var detail: String? = nil
     var chevron = false
 
+    @Environment(\.dynamicTypeSize) private var typeSize
+
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: symbol)
             Text(title)
             Spacer()
-            if let detail {
+            // At accessibility sizes the title gets the whole line.
+            if let detail, !typeSize.isAccessibilitySize {
                 Text(detail)
                     .font(.subheadline)
                     .foregroundStyle(.appTextMuted)
@@ -196,7 +199,12 @@ private struct TodayCard: View {
     let nutrition: Nutrition
     let goals: Goals
 
+    @Environment(\.dynamicTypeSize) private var typeSize
+
     var body: some View {
+        // At accessibility sizes the macros stack as rows and the rings step
+        // aside, so no word ever breaks mid-letter.
+        let large = typeSize.isAccessibilitySize
         VStack(alignment: .leading, spacing: 0) {
             CardHeader(
                 symbol: "fork.knife",
@@ -208,38 +216,54 @@ private struct TodayCard: View {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
                         Text(Formatting.calories(nutrition.calories))
-                            .font(.system(size: 40, weight: .bold))
+                            .numberFont(size: 40, weight: .bold)
                             .foregroundStyle(.appTextEmphasis)
                             .contentTransition(.numericText(value: nutrition.calories))
                         Text("/ \(Formatting.calories(goals.calories)) cal")
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(.appTextMuted)
                     }
-                    HStack(spacing: 0) {
+                    if large {
                         ForEach([Macro.protein, .carbs, .fat]) { macro in
-                            VStack(alignment: .leading, spacing: 2) {
+                            HStack(alignment: .firstTextBaseline) {
                                 Text(macro.name)
                                     .font(.subheadline.weight(.semibold))
                                     .foregroundStyle(macro.accent)
-                                HStack(alignment: .firstTextBaseline, spacing: 2) {
-                                    Text(Formatting.grams(nutrition[macro], includeUnit: false))
-                                        .font(.title3.weight(.bold))
-                                        .foregroundStyle(.appTextEmphasis)
-                                    Text("g")
-                                        .font(.subheadline.weight(.semibold))
-                                        .foregroundStyle(.appTextMuted)
-                                }
+                                Spacer()
+                                Text(Formatting.grams(nutrition[macro]))
+                                    .font(.title3.weight(.bold))
+                                    .foregroundStyle(.appTextEmphasis)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            if macro != .fat {
-                                Divider().frame(height: 34).padding(.horizontal, 6)
+                        }
+                    } else {
+                        HStack(spacing: 0) {
+                            ForEach([Macro.protein, .carbs, .fat]) { macro in
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(macro.name)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundStyle(macro.accent)
+                                    HStack(alignment: .firstTextBaseline, spacing: 2) {
+                                        Text(Formatting.grams(nutrition[macro], includeUnit: false))
+                                            .font(.title3.weight(.bold))
+                                            .foregroundStyle(.appTextEmphasis)
+                                        Text("g")
+                                            .font(.subheadline.weight(.semibold))
+                                            .foregroundStyle(.appTextMuted)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                if macro != .fat {
+                                    Divider().frame(height: 34).padding(.horizontal, 6)
+                                }
                             }
                         }
                     }
                 }
                 .monospacedDigit()
-                ConcentricRings(nutrition: nutrition, goals: goals)
-                    .frame(width: 96, height: 96)
+                if !large {
+                    ConcentricRings(nutrition: nutrition, goals: goals)
+                        .frame(width: 96, height: 96)
+                }
             }
             .padding(.top, 12)
         }
@@ -351,7 +375,7 @@ private struct MetricCard: View {
             HStack(alignment: .bottom) {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(macro == .calories ? Formatting.calories(week.today) : Formatting.grams(week.today, includeUnit: false))
-                        .font(.system(size: 34, weight: .bold))
+                        .numberFont(size: 34, weight: .bold)
                         .foregroundStyle(.appTextEmphasis)
                         .monospacedDigit()
                     Text(macro.unit)
@@ -433,6 +457,7 @@ private struct MealEditor: ViewModifier {
         content.sheet(item: $item) { draft in
             ReviewDrawer(
                 draft: draft,
+                isPresented: { item === draft },
                 onLog: {
                     if let entry = draft.editing {
                         MealLog(context: context, health: health).update(entry, items: draft.foods, at: draft.loggedAt)

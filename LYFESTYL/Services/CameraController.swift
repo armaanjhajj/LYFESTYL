@@ -48,13 +48,17 @@ final class CameraController {
             break
         }
         let running = await pipeline.start()
+        // Dashboard or Settings opened while the session was still starting:
+        // the stop already queued behind this start will shut it off again.
+        guard !Task.isCancelled else { return }
         state = running ? .running : .unavailable
     }
 
+    /// Always queued, even mid-start, since the session queue is serial and
+    /// runs it after any start still in flight.
     func stop() {
-        guard state == .running else { return }
         Task { await pipeline.stop() }
-        state = .idle
+        if state == .running { state = .idle }
     }
 
     /// The next frame, upright and downscaled. nil if the camera isn't running.

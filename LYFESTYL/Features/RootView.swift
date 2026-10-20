@@ -10,7 +10,14 @@
 import SwiftUI
 
 struct RootView: View {
-    @AppStorage("onboarding.v2.done") private var onboarded = false
+    @AppStorage("onboarding.v2.done") private var finishedSetup = false
+    /// Set by builds before the current setup flow; those people are done too.
+    @AppStorage("onboarding.done") private var finishedOldSetup = false
+
+    private var onboarded: Bool {
+        get { finishedSetup || finishedOldSetup }
+        nonmutating set { finishedSetup = newValue }
+    }
 
     var body: some View {
         Group {

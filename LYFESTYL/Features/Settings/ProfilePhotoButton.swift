@@ -38,7 +38,7 @@ struct ProfilePhotoButton: View {
                 }
         }
         .accessibilityLabel("Profile photo")
-        .photosPicker(isPresented: $choosing, selection: $item, matching: .images, photoLibrary: .shared())
+        .photosPicker(isPresented: $choosing, selection: $item, matching: .images)
         .fullScreenCover(isPresented: $taking) {
             CameraPicker { profile.setPhoto(from: $0) }
                 .ignoresSafeArea()

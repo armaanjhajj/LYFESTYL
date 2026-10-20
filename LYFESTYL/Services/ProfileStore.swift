@@ -48,7 +48,9 @@ final class ProfileStore {
 
     /// Crop to a centered square, shrink, and keep as a small JPEG.
     func setPhoto(from data: Data) {
-        guard let image = UIImage(data: data) else { return }
+        // Decode already upright and small rather than at full camera size.
+        guard let decoded = UprightImage.downsample(data, maxPixelSize: 1024) else { return }
+        let image = UIImage(cgImage: decoded)
         let side = min(image.size.width, image.size.height)
         let crop = CGRect(
             x: (image.size.width - side) / 2,
