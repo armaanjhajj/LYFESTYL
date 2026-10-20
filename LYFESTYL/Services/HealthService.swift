@@ -45,9 +45,15 @@ final class HealthService {
         isWritingEnabled = UserDefaults.standard.bool(forKey: Self.writeKey)
     }
 
-    /// True if the person has allowed writing dietary energy.
+    /// True if the person has allowed writing at least one of the four types.
     var canWrite: Bool {
-        isAvailable && store.authorizationStatus(for: HKQuantityType(.dietaryEnergyConsumed)) == .sharingAuthorized
+        isAvailable && Self.nutritionTypes.contains { allowed($0.1) }
+    }
+
+    /// Checked per type: a save that includes a type the person turned off
+    /// fails as a whole, so only allowed types are ever written.
+    private func allowed(_ type: HKQuantityType) -> Bool {
+        store.authorizationStatus(for: type) == .sharingAuthorized
     }
 
     /// Ask once for everything the app uses. Returns whether writing is allowed.
@@ -68,10 +74,11 @@ final class HealthService {
         let version = NSNumber(value: Int(Date.now.timeIntervalSince1970 * 1000))
         let samples = Self.nutritionTypes.compactMap { macro, type, unit -> HKQuantitySample? in
             let value = nutrition[macro]
-            guard value > 0 else { return nil }
+            guard value > 0, allowed(type) else { return nil }
             return HKQuantitySample(
                 type: type,
-                quantity: HKQuantity(unit: unit, doubleValue: value.rounded()),
+                // Same precision the meal is stored with.
+                quantity: HKQuantity(unit: unit, doubleValue: (value * 10).rounded() / 10),
                 start: date,
                 end: date,
                 metadata: [
@@ -95,7 +102,7 @@ final class HealthService {
 
     private func delete(mealIDs: [UUID], only macros: [Macro]) async {
         guard isAvailable, !mealIDs.isEmpty, !macros.isEmpty, canWrite else { return }
-        for (macro, type, _) in Self.nutritionTypes where macros.contains(macro) {
+        for (macro, type, _) in Self.nutritionTypes where macros.contains(macro) && allowed(type) {
             let ids = mealIDs.map { Self.syncID($0, macro) }
             let predicate = HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeySyncIdentifier, allowedValues: ids)
             _ = try? await store.deleteObjects(of: type, predicate: predicate)

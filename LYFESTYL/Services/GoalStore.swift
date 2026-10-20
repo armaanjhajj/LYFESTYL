@@ -2,9 +2,12 @@
 //  GoalStore.swift
 //  LYFESTYL
 //
-//  Goals and the body profile live in iCloud key-value storage, Apple's store
-//  for small per-person settings, so a new phone starts with the same targets.
-//  UserDefaults keeps a local copy so the app works signed out of iCloud.
+//  Goals live in iCloud key-value storage, Apple's store for small per-person
+//  settings, so a new phone starts with the same targets. UserDefaults keeps a
+//  local copy so the app works signed out of iCloud.
+//
+//  The body profile stays on this iPhone. It can hold height, weight, age and
+//  sex read from Apple Health, and Health data may not be stored in iCloud.
 //
 
 import Foundation
@@ -19,9 +22,12 @@ final class GoalStore {
         didSet { if goals != oldValue { write(goals, key: Self.goalsKey) } }
     }
 
-    /// nil until the person fills in the calculator once.
+    /// nil until the person fills in the calculator once. Device only.
     var profile: BodyProfile? {
-        didSet { if profile != oldValue, let profile { write(profile, key: Self.profileKey) } }
+        didSet {
+            guard profile != oldValue, let profile, let data = try? JSONEncoder().encode(profile) else { return }
+            local.set(data, forKey: Self.profileKey)
+        }
     }
 
     @ObservationIgnored private let cloud = NSUbiquitousKeyValueStore.default
@@ -30,7 +36,10 @@ final class GoalStore {
 
     init() {
         goals = Self.read(Goals.self, key: Self.goalsKey) ?? Goals()
-        profile = Self.read(BodyProfile.self, key: Self.profileKey)
+        profile = UserDefaults.standard.data(forKey: Self.profileKey)
+            .flatMap { try? JSONDecoder().decode(BodyProfile.self, from: $0) }
+        // Earlier builds synced the profile; take it out of iCloud.
+        NSUbiquitousKeyValueStore.default.removeObject(forKey: Self.profileKey)
         observer = NotificationCenter.default.addObserver(
             forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
             object: NSUbiquitousKeyValueStore.default,
@@ -48,7 +57,6 @@ final class GoalStore {
 
     private func reloadFromCloud() {
         if let goals = Self.read(Goals.self, key: Self.goalsKey), goals != self.goals { self.goals = goals }
-        if let profile = Self.read(BodyProfile.self, key: Self.profileKey), profile != self.profile { self.profile = profile }
     }
 
     private func write<T: Encodable>(_ value: T, key: String) {
