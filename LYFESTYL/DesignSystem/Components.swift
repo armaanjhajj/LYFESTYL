@@ -154,15 +154,20 @@ struct MacroLine: View {
     let fat: Double
 
     var body: some View {
-        HStack(spacing: 10) {
-            part(protein, .protein, "P")
-            part(carbs, .carbs, "C")
-            part(fat, .fat, "F")
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) { parts }
+            VStack(alignment: .leading, spacing: 2) { parts }
         }
         .font(.subheadline.weight(.semibold))
         .monospacedDigit()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(Formatting.grams(protein)) protein, \(Formatting.grams(carbs)) carbs, \(Formatting.grams(fat)) fat")
+    }
+
+    @ViewBuilder private var parts: some View {
+        part(protein, .protein, "P")
+        part(carbs, .carbs, "C")
+        part(fat, .fat, "F")
     }
 
     private func part(_ value: Double, _ macro: Macro, _ letter: String) -> some View {
@@ -194,24 +199,59 @@ struct SliderField<Focus: Hashable>: View {
     let id: Focus
 
     @State private var upper: Double?
+    @State private var text = ""
+    @State private var selection: TextSelection?
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     private var isFocused: Bool { focus.wrappedValue == id }
+
+    /// Take what was typed (either decimal separator), keep it in range, and
+    /// show the result.
+    private func commit() {
+        let cleaned = text.replacingOccurrences(of: ",", with: ".").filter { $0.isNumber || $0 == "." }
+        if let typedValue = Double(cleaned) { typed.wrappedValue = typedValue }
+        text = Self.display(value)
+    }
+
+    private static func display(_ value: Double) -> String {
+        value.formatted(.number.precision(.fractionLength(0...1)).grouping(.never))
+    }
+
+    /// Typed values stay in range. Fields that grow can go past the slider,
+    /// up to twenty times its top, which no real food or goal reaches.
+    private var typed: Binding<Double> {
+        Binding(
+            get: { value },
+            set: { new in
+                guard new.isFinite else { return }
+                let ceiling = grows ? range.upperBound * 20 : range.upperBound
+                value = min(max(new, range.lowerBound), ceiling)
+            }
+        )
+    }
     private var top: Double { upper ?? range.upperBound }
 
     var body: some View {
+        // At accessibility sizes the value moves under the title, so the
+        // title never breaks mid-word.
+        let header = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 10))
         VStack(spacing: 12) {
-            HStack(spacing: 10) {
-                if let symbol {
-                    Image(systemName: symbol)
-                        .foregroundStyle(tint)
-                        .frame(width: 24)
+            header {
+                HStack(spacing: 10) {
+                    if let symbol {
+                        Image(systemName: symbol)
+                            .foregroundStyle(tint)
+                            .frame(width: typeSize.isAccessibilitySize ? nil : 24)
+                    }
+                    Text(title)
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.appTextEmphasis)
                 }
-                Text(title)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.appTextEmphasis)
-                Spacer()
+                if !typeSize.isAccessibilitySize { Spacer() }
                 HStack(alignment: .firstTextBaseline, spacing: 3) {
-                    TextField("0", value: $value, format: .number.precision(.fractionLength(0...1)).grouping(.never))
+                    TextField("0", text: $text, selection: $selection)
                         .keyboardType(.decimalPad)
                         .multilineTextAlignment(.trailing)
                         .font(.title3.weight(.bold))
@@ -220,6 +260,7 @@ struct SliderField<Focus: Hashable>: View {
                         .frame(minWidth: 36)
                         .fixedSize()
                         .focused(focus, equals: id)
+                        .onSubmit(commit)
                     if !unit.isEmpty {
                         Text(unit)
                             .font(.subheadline.weight(.semibold))
@@ -234,6 +275,7 @@ struct SliderField<Focus: Hashable>: View {
                 .onTapGesture { focus.wrappedValue = id }
                 .animation(.snappy, value: isFocused)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             Slider(
                 value: Binding(
                     get: { min(max(value, range.lowerBound), top) },
@@ -245,11 +287,25 @@ struct SliderField<Focus: Hashable>: View {
             .accessibilityLabel(title)
         }
         .padding(.vertical, 6)
-        .sensoryFeedback(.selection, trigger: Int(value / (step * 5)))
+        .sensoryFeedback(.selection, trigger: Int(min(max(value, 0), 1e9) / (step * 5)))
         // The range is fixed once shown, so dragging never rescales the
         // slider under your thumb.
-        .onAppear { if upper == nil { upper = range.upperBound } }
+        .onAppear {
+            if upper == nil { upper = range.upperBound }
+            text = Self.display(value)
+        }
+        .onChange(of: isFocused) { _, focused in
+            if focused {
+                // Select it all, so typing replaces the number instead of
+                // landing before or after it.
+                text = Self.display(value)
+                selection = TextSelection(range: text.startIndex..<text.endIndex)
+            } else {
+                commit()
+            }
+        }
         .onChange(of: value) { _, new in
+            if !isFocused { text = Self.display(new) }
             guard grows, new > top else { return }
             let round = pow(10, max(1, (log10(new)).rounded(.down)))
             upper = (new * 1.5 / round).rounded(.up) * round
@@ -290,5 +346,22 @@ struct Avatar: View {
         .frame(width: size, height: size)
         .clipShape(Circle())
         .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Keyboard
+
+extension View {
+    /// One Done button above the keyboard for the whole screen, whichever
+    /// field is being edited.
+    func keyboardDoneButton() -> some View {
+        toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                }
+            }
+        }
     }
 }

@@ -16,6 +16,9 @@ struct OnboardingView: View {
     @Environment(HealthService.self) private var health
     @State private var path: [Step] = []
     @State private var bodyProfile = BodyProfile()
+    /// Goals already in iCloud (a second iPhone, a reinstall): setup stops
+    /// after Health instead of recalculating and overwriting them.
+    @State private var hasGoals = false
 
     enum Step: Hashable { case welcome, profile, health, body, aim, activity, plan }
 
@@ -26,7 +29,10 @@ struct OnboardingView: View {
                 .navigationDestination(for: Step.self, destination: page)
         }
         .tint(.appAccent)
-        .onAppear { if let saved = goalStore.profile { bodyProfile = saved } }
+        .onAppear {
+            if let saved = goalStore.profile { bodyProfile = saved }
+            hasGoals = goalStore.hasStoredGoals
+        }
     }
 
     @ViewBuilder
@@ -100,9 +106,13 @@ struct OnboardingView: View {
     }
 
     private func advance(from step: Step) {
-        let order: [Step] = [.welcome, .profile, .health, .body, .aim, .activity, .plan]
+        let goalSteps: [Step] = hasGoals ? [] : [.body, .aim, .activity, .plan]
+        let order = ([.welcome, .profile, .health] + goalSteps)
             .filter { $0 != .health || health.isAvailable }
-        guard let index = order.firstIndex(of: step), index + 1 < order.count else { return }
+        guard let index = order.firstIndex(of: step), index + 1 < order.count else {
+            onDone()
+            return
+        }
         path.append(order[index + 1])
     }
 }
@@ -317,7 +327,7 @@ private struct PlanPage: View {
 
             VStack(spacing: 0) {
                 Text(Formatting.calories(filled ? goals.calories : 0))
-                    .font(.system(size: 56, weight: .black))
+                    .numberFont(size: 56, weight: .black)
                     .monospacedDigit()
                     .foregroundStyle(.appTextEmphasis)
                     .contentTransition(.numericText(value: filled ? goals.calories : 0))
@@ -378,6 +388,10 @@ private struct OnboardingPage<Content: View, Actions: View>: View {
     @ViewBuilder var content: Content
     @ViewBuilder var actions: Actions
 
+    /// The bottom buttons step aside while typing, so they never sit over
+    /// the field being edited. Done above the keyboard closes it.
+    @State private var typing = false
+
     var body: some View {
         Form {
             Section {
@@ -409,11 +423,20 @@ private struct OnboardingPage<Content: View, Actions: View>: View {
         .listSectionSpacing(.compact)
         .contentMargins(.top, 0, for: .scrollContent)
         .scrollDismissesKeyboard(.interactively)
+        .keyboardDoneButton()
         .scrollBounceBehavior(.basedOnSize)
         .safeAreaBar(edge: .bottom) {
-            VStack(spacing: 14) { actions }
-                .padding(.horizontal, 28)
-                .padding(.bottom, 12)
+            if !typing {
+                VStack(spacing: 14) { actions }
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, 12)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            typing = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            typing = false
         }
         .navigationBarTitleDisplayMode(.inline)
     }

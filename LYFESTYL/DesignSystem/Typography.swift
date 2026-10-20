@@ -103,3 +103,26 @@ extension View {
             }
     }
 }
+
+// MARK: - Big numbers
+
+private struct NumberFont: ViewModifier {
+    let size: CGFloat
+    let weight: Font.Weight
+    @ScaledMetric(relativeTo: .largeTitle) private var scale: CGFloat = 1
+
+    func body(content: Content) -> some View {
+        content
+            .font(.system(size: size * scale, weight: weight))
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
+    }
+}
+
+extension View {
+    /// A hero number that grows with the reader's text size like the words
+    /// around it, and shrinks to stay on one line.
+    func numberFont(size: CGFloat, weight: Font.Weight) -> some View {
+        modifier(NumberFont(size: size, weight: weight))
+    }
+}

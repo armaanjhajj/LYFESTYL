@@ -80,7 +80,7 @@ struct MetricDetailView: View {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 let value = picked?.value ?? average
                 Text(points.isEmpty ? "--" : (macro == .calories ? Formatting.calories(value) : Formatting.grams(value, includeUnit: false)))
-                    .font(.system(size: 40, weight: .bold))
+                    .numberFont(size: 40, weight: .bold)
                     .foregroundStyle(.appTextEmphasis)
                     .contentTransition(.numericText(value: value))
                 Text(macro.unit)

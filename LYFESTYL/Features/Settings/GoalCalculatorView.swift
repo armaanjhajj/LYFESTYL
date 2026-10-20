@@ -80,12 +80,6 @@ struct BodySection: View {
                 .disabled(filling)
             }
         }
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Done") { focused = nil }
-            }
-        }
     }
 
     private var age: Binding<Double> {
@@ -146,7 +140,7 @@ struct GoalPreviewSection: View {
             VStack(spacing: 10) {
                 VStack(spacing: 0) {
                     Text(Formatting.calories(goals.calories))
-                        .font(.system(size: 48, weight: .black))
+                        .numberFont(size: 48, weight: .black)
                         .foregroundStyle(.appTextEmphasis)
                         .contentTransition(.numericText(value: goals.calories))
                     Text("CAL A DAY").sectionHeader(color: .appTextMuted)
@@ -177,6 +171,7 @@ struct GoalCalculatorView: View {
         .background(.appBackground)
         .contentMargins(.top, 4, for: .scrollContent)
         .scrollDismissesKeyboard(.interactively)
+        .keyboardDoneButton()
         .capsNavigationTitle("Your Goals")
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
